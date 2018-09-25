@@ -1,3 +1,22 @@
+Changes in robmed version 0.2.0
+
+    + Added shiny app for comparing bootstrap methods on simulated data with
+      outliers.
+
+    + Added support for multiple mediators for standard and robust bootstrap
+      tests based on regressions.
+
+    + Redesigned functions to live in the tidyverse: using under_scores instead
+      of camelCase; first argument of fit_mediation() and test_mediation() is a
+      data frame.
+
+    + Added method based on robust regressions and fast and robust bootstrap,
+      which is the new default method.
+
+    + Wrapper function indirect() now always uses the bootstrap test
+
+
+
 Changes in robmed version 0.1.1
 
     + Bugfix in density plot: bootstrap replicates for indirect effect are now
