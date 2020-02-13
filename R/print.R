@@ -8,14 +8,15 @@ print_info <- function(x, ...) UseMethod("print_info")
 
 # information to display for regression fits
 print_info.reg_fit_mediation <- function(x, ...) {
-  prefix <- if (x$robust && !x$median) "Robust mediation" else "Mediation"
-  postfix <- if (x$median) "via median regression" else "via regression"
+  prefix <- if (is_robust(x)) "Robust mediation" else "Mediation"
+  if (x$robust == "median") postfix <- "via median regression"
+  else postfix <- "via regression"
   cat(sprintf("%s model fit %s\n", prefix, postfix))
 }
 
 # information to display for covariance matrix fits
 print_info.cov_fit_mediation <- function(x, ...) {
-  prefix <- if (x$robust) "Robust mediation" else "Mediation"
+  prefix <- if (is_robust(x)) "Robust mediation" else "Mediation"
   cat(sprintf("%s model fit via covariance matrix\n", prefix))
 }
 
@@ -24,8 +25,9 @@ print_info.boot_test_mediation <- function(x, ...) {
   # type of test and model fit
   fit <- x$fit
   if (inherits(x$fit, "reg_fit_mediation")) {
-    prefix <- if (fit$robust && !fit$median) "Robust bootstrap" else "Bootstrap"
-    postfix <- if (fit$median) " via median regression" else " via regression"
+    prefix <- if (fit$robust == "MM") "Robust bootstrap" else "Bootstrap"
+    if (fit$robust == "median") postfix <- " via median regression"
+    else postfix <- " via regression"
   } else if (inherits(fit, "cov_fit_mediation")) {
     prefix <- if (fit$robust) "Robust bootstrap" else "Bootstrap"
     postfix <- " via covariance matrix"
@@ -46,8 +48,9 @@ print_info.sobel_test_mediation <- function(x, ...) {
   # type of test and model fit
   fit <- x$fit
   if (inherits(x$fit, "reg_fit_mediation")) {
-    prefix <- if (fit$robust && !fit$median) "Robust normal" else "Normal"
-    postfix <- if (fit$median) " via median regression" else " via regression"
+    prefix <- if (fit$robust == "MM") "Robust normal" else "Normal"
+    if (fit$robust == "median") postfix <- " via median regression"
+    else postfix <- " via regression"
   } else if (inherits(fit, "cov_fit_mediation")) {
     prefix <- if (fit$robust) "Robust normal" else "Normal"
     postfix <- " via covariance matrix"

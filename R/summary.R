@@ -25,17 +25,17 @@ summary.reg_fit_mediation <- function(object, ...) object
 #' @param object  an object inheriting from class
 #' \code{"\link{test_mediation}"} containing results from (robust) mediation
 #' analysis.
-#' @param other  a character string specifying how to summarize the effects
+#' @param type  a character string specifying how to summarize the effects
 #' other than the indirect effect(s).  Possible values are \code{"boot"} (the
 #' default) to compute significance tests using the normal approximation of the
 #' bootstrap distribution (i.e., to assume a normal distribution of the
 #' corresponding effect with the standard deviation computed from the bootstrap
 #' replicates), or \code{"theory"} to compute significance tests via
-#' statistical theory (e.g., t-tests if the coefficients are estimated via
-#' regression).  Note that this is only relevant for mediation analysis via a
-#' bootstrap test, where significance of the indirect effect is always assessed
-#' via a percentile-based confidence interval due to the asymmetry of its
-#' distribution.
+#' statistical theory based on the original data (e.g., t-tests if the
+#' coefficients are estimated via regression).  Note that this is only relevant
+#' for mediation analysis via a bootstrap test, where significance of the
+#' indirect effect is always assessed via a percentile-based confidence
+#' interval due to the asymmetry of its distribution.
 #' @param \dots  additional arguments are currently ignored.
 #'
 #' @return An object of class \code{"summary_test_mediation"} with the
@@ -66,12 +66,25 @@ NULL
 #' @method summary boot_test_mediation
 #' @export
 
-summary.boot_test_mediation <- function(object, other = c("boot", "theory"),
-                                        ...) {
+summary.boot_test_mediation <- function(object, type = c("boot", "data"), ...) {
+  # for compatibility with previous versions
+  other <- list(...)$other
+  if (missing(type) && !is.null(other)) {
+    other <- match.arg(other, choices = c("boot", "theory"))
+    if (other == "boot") {
+      warning("Argument 'other = \"boot\"' is deprecated.\n",
+              "Use 'type = \"boot\"' instead.", call. = FALSE)
+      type <- "boot"
+    } else if (other == "theory") {
+      warning("Argument 'other = \"theory\"' is deprecated.\n",
+              "Use 'type = \"data\"' instead.", call. = FALSE)
+      type <- "data"
+    }
+  }
   # get significance of effects and summary of model fit
   # component 'boot' only exists for bootstrap test, otherwise NULL
-  other <- match.arg(other)
-  if(other == "boot") summary <- get_summary(object$fit, boot = object$reps)
+  type <- match.arg(type)
+  if(type == "boot") summary <- get_summary(object$fit, boot = object$reps)
   else summary <- get_summary(object$fit)
   # construct return object
   result <- list(object = object, summary = summary)
@@ -108,6 +121,9 @@ get_summary.NULL <- function(object, ...) NULL
 # dirty hack:
 get_summary.list <- function(object, ...) {
   lapply(object, function(x, ...) {
+    # FIXME: this throws error when MM-estimator doesn't converge
+    #        The reason is that the (unconverged) object has class "lmrob.S"
+    #        instead of class "lmrob".
     if (inherits(x, "lmrob")) get_summary.lmrob(x, ...)
     else if (inherits(x, "lm")) get_summary.lm(x, ...)
     else if (inherits(x, "rq")) get_summary.rq(x, ...)
@@ -174,8 +190,8 @@ get_summary.reg_fit_mediation <- function(object, boot = NULL, ...) {
   p_m <- length(m)
   covariates <- object$covariates
   p_covariates <- length(covariates)
+  have_robust <- is_robust(object)
   robust <- object$robust
-  median <- object$median
   have_boot <- !is.null(boot)
   # extract number of observations
   n <- nobs(object$fit_ymx)
@@ -202,7 +218,7 @@ get_summary.reg_fit_mediation <- function(object, boot = NULL, ...) {
   }
   ## compute summary of m ~ x + covariates
   # robust F test requires that response variable is stored in "lmrob" object
-  if (robust && !median) {
+  if (robust == "MM") {
     if (p_m == 1L) {
       object$fit_mx$response <- object$data[, object$m, drop = TRUE]
     } else {
@@ -235,7 +251,7 @@ get_summary.reg_fit_mediation <- function(object, boot = NULL, ...) {
   }
   ## compute summary of y ~ m + x + covariates
   # robust F test requires that response variable is stored in "lmrob" object
-  if (robust && !median) object$fit_ymx$response <- object$data[, object$y]
+  if (robust == "MM") object$fit_ymx$response <- object$data[, object$y]
   # compute summary of model
   summary_ymx <- get_summary(object$fit_ymx)
   # if bootstrap inference is requested, replace the usual coefficient matrix
@@ -250,7 +266,7 @@ get_summary.reg_fit_mediation <- function(object, boot = NULL, ...) {
   if (have_boot) {
     keep <- index_list$total
     total <- coefficients[keep, , drop = FALSE]
-  } else if (robust) {
+  } else if (have_robust) {
     # standard errors and t-test not available
     total <- matrix(c(object$total, rep.int(NA_real_, 3L)), nrow = 1L)
     dimnames(total) <- dimnames(direct)
@@ -262,7 +278,7 @@ get_summary.reg_fit_mediation <- function(object, boot = NULL, ...) {
   # return results
   result <- list(fit_mx = summary_mx, fit_ymx = summary_ymx, total = total,
                  direct = direct, x = x, y = y, m = m, covariates = covariates,
-                 n = n, robust = robust, median = median)
+                 n = n, robust = robust)
   class(result) <- c("summary_reg_fit_mediation", "summary_fit_mediation")
   result
 }
@@ -332,7 +348,8 @@ get_summary.cov_fit_mediation <- function(object, boot = NULL, ...) {
                  b = coefficients[2, , drop = FALSE],
                  total = coefficients[4, , drop = FALSE],
                  direct = coefficients[3, , drop = FALSE],
-                 x = x, y = y, m = m, n = n, robust = object$robust)
+                 x = x, y = y, m = m, n = n,
+                 robust = object$robust)
   class(result) <- c("summary_cov_fit_mediation", "summary_fit_mediation")
   result
 }

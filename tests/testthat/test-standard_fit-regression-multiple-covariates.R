@@ -28,6 +28,11 @@ foo <- fit_mediation(test_data, x = "X", y = "Y", m = c("M1", "M2"),
                      robust = FALSE)
 bar <- summary(foo)
 
+## create data for plotting
+ellipse_default <- setup_ellipse_plot(foo)
+ellipse_partial <- setup_ellipse_plot(foo, horizontal = "M1", vertical = "Y",
+                                      partial = TRUE)
+
 
 ## run tests
 
@@ -56,7 +61,6 @@ test_that("arguments are correctly passed", {
   expect_identical(foo$covariates, c("C1", "C2"))
   # robust fit
   expect_false(foo$robust)
-  expect_false(foo$median)
   expect_null(foo$control)
 
 })
@@ -111,4 +115,85 @@ test_that("coef() method returns correct values of coefficients", {
 
 test_that("summary returns original object", {
   expect_identical(foo, bar)
+})
+
+test_that("object returned by setup_ellipse_plot() has correct structure", {
+
+  # check data frame for data to be plotted
+  expect_s3_class(ellipse_default$data, "data.frame")
+  expect_s3_class(ellipse_partial$data, "data.frame")
+  # check dimensions
+  expect_identical(dim(ellipse_default$data), c(as.integer(n), 2L))
+  expect_identical(dim(ellipse_partial$data), c(as.integer(n), 2L))
+  # check column names
+  column_names <- c("x", "y")
+  expect_named(ellipse_default$data, column_names)
+  expect_named(ellipse_partial$data, column_names)
+
+  # check data frame for ellipse
+  expect_s3_class(ellipse_default$ellipse, "data.frame")
+  expect_s3_class(ellipse_partial$ellipse, "data.frame")
+  # check dimensions
+  expect_identical(ncol(ellipse_default$ellipse), 2L)
+  expect_gt(nrow(ellipse_default$ellipse), 0L)
+  expect_identical(ncol(ellipse_partial$ellipse), 2L)
+  expect_gt(nrow(ellipse_partial$ellipse), 0L)
+  # check column names
+  column_names <- c("x", "y")
+  expect_named(ellipse_default$ellipse, column_names)
+  expect_named(ellipse_partial$ellipse, column_names)
+
+  # check data frame for line representing the coefficient
+  expect_null(ellipse_default$line)
+  expect_s3_class(ellipse_partial$line, "data.frame")
+  # check dimensions
+  expect_identical(dim(ellipse_partial$line), c(1L, 2L))
+  # check column names
+  column_names <- c("intercept", "slope")
+  expect_named(ellipse_partial$line, column_names)
+  # check if intercept is 0 for partial residuals
+  expect_identical(ellipse_partial$line$intercept, 0)
+
+  # check if variables are passed correctly
+  expect_identical(ellipse_default$horizontal, "X")
+  expect_identical(ellipse_default$vertical, "M1")
+  expect_identical(ellipse_partial$horizontal, "M1")
+  expect_identical(ellipse_partial$vertical, "Y")
+
+  # check logical for partial residuals on the vertical axis
+  expect_false(ellipse_default$partial)
+  expect_true(ellipse_partial$partial)
+
+  # check logical for robust method
+  expect_false(ellipse_default$robust)
+  expect_false(ellipse_partial$robust)
+
+  # check logical for multiple methods
+  expect_false(ellipse_default$have_methods)
+  expect_false(ellipse_partial$have_methods)
+
+})
+
+
+# fit mediation model through formula interface with data argument
+fit_f1 <- fit_mediation(Y ~ m(M1, M2) + X + covariates(C1, C2),
+                        data = test_data, method = "regression",
+                        robust = FALSE)
+# fit mediation model through formula interface without data argument
+fit_f2 <- fit_mediation(Y ~ m(M1, M2) + X + covariates(C1, C2),
+                        method = "regression", robust = FALSE)
+# define mediators and covariates outside formula
+med <- m(M1, M2)
+cov <- covariates(C1, C2)
+fit_f3 <- fit_mediation(Y ~ med + X + cov, data = test_data,
+                        method = "regression", robust = FALSE)
+
+
+test_that("formula interface works correctly", {
+
+  # check that results are the same as with default method
+  expect_equal(fit_f1, foo)
+  expect_equal(fit_f2, foo)
+  expect_equal(fit_f3, foo)
+
 })
