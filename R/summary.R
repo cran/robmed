@@ -5,11 +5,13 @@
 
 ## summary of a mediation model fit based on a scatter matrix
 ## (currently doesn't do anything)
+#' @method summary cov_fit_mediation
 #' @export
 summary.cov_fit_mediation <- function(object, ...) object
 
 ## summary of a mediation model fit based on regression
 ## (currently doesn't do anything)
+#' @method summary reg_fit_mediation
 #' @export
 summary.reg_fit_mediation <- function(object, ...) object
 
@@ -67,20 +69,6 @@ NULL
 #' @export
 
 summary.boot_test_mediation <- function(object, type = c("boot", "data"), ...) {
-  # for compatibility with previous versions
-  other <- list(...)$other
-  if (missing(type) && !is.null(other)) {
-    other <- match.arg(other, choices = c("boot", "theory"))
-    if (other == "boot") {
-      warning("Argument 'other = \"boot\"' is deprecated.\n",
-              "Use 'type = \"boot\"' instead.", call. = FALSE)
-      type <- "boot"
-    } else if (other == "theory") {
-      warning("Argument 'other = \"theory\"' is deprecated.\n",
-              "Use 'type = \"data\"' instead.", call. = FALSE)
-      type <- "data"
-    }
-  }
   # get significance of effects and summary of model fit
   # component 'boot' only exists for bootstrap test, otherwise NULL
   type <- match.arg(type)
@@ -155,8 +143,12 @@ get_summary.lm <- function(object, ...) {
 # for a robust linear model: return coefficient matrix, robust regression
 # standard error, robust R^2 and robust F-test
 get_summary.lmrob <- function(object, ...) {
-  # compute the usual summary and extract coefficient matrix
+  # compute the usual summary
   summary <- summary(object)
+  # extract information on algorithm
+  algorithm <- list(converged = summary$converged,
+                    method = summary$control$method)
+  # extract coefficient matrix
   coefficients <- coef(summary)
   # reformat residual standard error
   s <- list(value = summary$sigma, df = summary$df[2L])
@@ -164,8 +156,14 @@ get_summary.lmrob <- function(object, ...) {
   R2 <- list(R2 = summary$r.squared, adj_R2 = summary$adj.r.squared)
   # compute robust F-test for robust fit
   F_test <- rob_F_test(object)
+  # detected outliers
+  robustness_weights <- summary$rweights
+  threshold <- summary$control$eps.outlier
+  outliers <- list(indices = which(unname(robustness_weights) < threshold),
+                   weights = robustness_weights, threshold = threshold)
   # return results
-  result <- list(coefficients = coefficients, s = s, R2 = R2, F_test = F_test)
+  result <- list(algorithm = algorithm, coefficients = coefficients, s = s,
+                 R2 = R2, F_test = F_test, outliers = outliers)
   class(result) <- "summary_lmrob"
   result
 }
@@ -192,6 +190,7 @@ get_summary.reg_fit_mediation <- function(object, boot = NULL, ...) {
   p_covariates <- length(covariates)
   have_robust <- is_robust(object)
   robust <- object$robust
+  have_fit_yx <- !is.null(object$fit_yx)
   have_boot <- !is.null(boot)
   # extract number of observations
   n <- nobs(object$fit_ymx)
@@ -266,14 +265,14 @@ get_summary.reg_fit_mediation <- function(object, boot = NULL, ...) {
   if (have_boot) {
     keep <- index_list$total
     total <- coefficients[keep, , drop = FALSE]
-  } else if (have_robust) {
-    # standard errors and t-test not available
-    total <- matrix(c(object$total, rep.int(NA_real_, 3L)), nrow = 1L)
-    dimnames(total) <- dimnames(direct)
-  } else {
+  } else if (have_fit_yx) {
     # compute summary of y ~ x + covariates and extract summary of total effect
     summary_yx <- get_summary(object$fit_yx)
     total <- coef(summary_yx)[2L, , drop = FALSE]
+  } else {
+    # standard errors and t-test not available
+    total <- matrix(c(object$total, rep.int(NA_real_, 3L)), nrow = 1L)
+    dimnames(total) <- dimnames(direct)
   }
   # return results
   result <- list(fit_mx = summary_mx, fit_ymx = summary_ymx, total = total,

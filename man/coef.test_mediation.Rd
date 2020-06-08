@@ -8,8 +8,7 @@
 \usage{
 \method{coef}{test_mediation}(object, parm = NULL, ...)
 
-\method{coef}{boot_test_mediation}(object, parm = NULL,
-  type = c("boot", "data"), ...)
+\method{coef}{boot_test_mediation}(object, parm = NULL, type = c("boot", "data"), ...)
 
 \method{coef}{fit_mediation}(object, parm = NULL, ...)
 }
@@ -52,7 +51,7 @@ coef(test, type = "boot")  # means of bootstrap replicates
 }
 \seealso{
 \code{\link{test_mediation}()}, \code{\link{fit_mediation}()},
-\code{\link[=confint.test_mediation]{confint}()}
+\code{\link[=confint.test_mediation]{confint}()}, \code{\link{p_value}()}
 }
 \author{
 Andreas Alfons

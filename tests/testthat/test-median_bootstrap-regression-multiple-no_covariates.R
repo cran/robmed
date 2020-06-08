@@ -23,21 +23,23 @@ test_data <- data.frame(X, Y, M1, M2)
 
 ## run bootstrap test
 set.seed(seed)
-level <- 0.9
+level <- c(0.9, 0.95)
 boot <- test_mediation(test_data, x = "X", y = "Y", m = c("M1", "M2"),
-                       test = "boot", R = R, level = level, type = "bca",
+                       test = "boot", R = R, level = level[1], type = "bca",
                        method = "regression", robust = "median")
 
 ## compute summary
 summary_boot <- summary(boot, type = "boot")
 summary_data <- summary(boot, type = "data")
 
+## retest with different parameters
+boot_less <- retest(boot, alternative = "less", level = level[2])
+boot_greater <- retest(boot, alternative = "greater", level = level[2])
+boot_perc <- retest(boot, type = "perc", level = level[2])
+
 ## create data for plotting
 ci <- setup_ci_plot(boot)
 density <- setup_density_plot(boot)
-# deprecated:
-dot_deprecated <- suppressWarnings(fortify(boot, method = "dot"))
-density_deprecated <- suppressWarnings(fortify(boot, method = "density"))
 
 ## stuff needed to check correctness
 indirect_names <- c("Total", "M1", "M2")
@@ -69,7 +71,7 @@ test_that("arguments are correctly passed", {
   # number of bootstrap replicates
   expect_identical(boot$R, as.integer(R))  # doesn't hold for too many outliers
   # confidence level
-  expect_identical(boot$level, level)
+  expect_identical(boot$level, level[1])
   # type of confidence intervals
   expect_identical(boot$type, "bca")
   # variable names
@@ -79,6 +81,7 @@ test_that("arguments are correctly passed", {
   expect_identical(boot$fit$covariates, character())
   # robust fit and test
   expect_identical(boot$fit$robust, "median")
+  expect_identical(boot$fit$family, "gaussian")
   expect_null(boot$fit$control)
 
 })
@@ -275,6 +278,76 @@ test_that("effect summaries contain correct coefficient values", {
 
 })
 
+test_that("output of retest() has correct structure", {
+
+  # bootstrap test
+  expect_identical(class(boot_less), class(boot))
+  expect_identical(class(boot_greater), class(boot))
+  expect_identical(class(boot_perc), class(boot))
+  # regression fit
+  expect_identical(boot_less$fit, boot$fit)
+  expect_identical(boot_greater$fit, boot$fit)
+  expect_identical(boot_perc$fit, boot$fit)
+  # bootstrap replicates
+  expect_identical(boot_less$reps, boot$reps)
+  expect_identical(boot_greater$reps, boot$reps)
+  expect_identical(boot_perc$reps, boot$reps)
+
+})
+
+test_that("arguments of retest() are correctly passed", {
+
+  # alternative hypothesis
+  expect_identical(boot_less$alternative, "less")
+  expect_identical(boot_greater$alternative, "greater")
+  expect_identical(boot_perc$alternative, "twosided")
+  # confidence level
+  expect_identical(boot_less$level, level[2])
+  expect_identical(boot_greater$level, level[2])
+  expect_identical(boot_perc$level, level[2])
+  # type of confidence intervals
+  expect_identical(boot_less$type, "bca")
+  expect_identical(boot_greater$type, "bca")
+  expect_identical(boot_perc$type, "perc")
+  # multiple indirect effects
+  expect_identical(boot_less$ab, boot$ab)
+  expect_identical(boot_greater$ab, boot$ab)
+  expect_identical(boot_perc$ab, boot$ab)
+  # multiple confidence intervals for alternative = "less"
+  expect_identical(dim(boot_less$ci), dim(boot$ci))
+  expect_identical(rownames(boot_less$ci), rownames(boot$ci))
+  expect_equivalent(boot_less$ci[, 1], rep(-Inf, 3))
+  expect_equal(boot_less$ci[, 2], boot$ci[, 2])
+  expect_identical(colnames(confint(boot_less)), c("Lower", "Upper"))
+  # multiple confidence intervals for alternative = "greater"
+  expect_identical(dim(boot_greater$ci), dim(boot$ci))
+  expect_identical(rownames(boot_greater$ci), rownames(boot$ci))
+  expect_equal(boot_greater$ci[, 1], boot$ci[, 1])
+  expect_equivalent(boot_greater$ci[, 2], rep(Inf, 3))
+  expect_identical(colnames(confint(boot_greater)), c("Lower", "Upper"))
+  # multiple confidence intervals for type = "perc"
+  expect_identical(dim(boot_perc$ci), dim(boot$ci))
+  expect_identical(rownames(boot_perc$ci), rownames(boot$ci))
+
+})
+
+test_that("output of p_value() method has correct attributes", {
+
+  p_boot <- p_value(boot_perc, type = "boot")
+  digits <- 3
+  p_boot <- p_value(boot_perc, type = "boot", digits = digits)
+  p_data <- p_value(boot_perc, type = "data", digits = digits)
+  # bootstrapped effects
+  expect_length(p_boot, 9L)
+  expect_named(p_boot, coef_names)
+  expect_equal(p_boot[ab_names], round(p_boot[ab_names], digits = digits))
+  # effects computed on original sample
+  expect_length(p_data, 9L)
+  expect_named(p_data, coef_names)
+  expect_equal(p_data[ab_names], round(p_data[ab_names], digits = digits))
+
+})
+
 test_that("objects returned by setup_xxx_plot() have correct structure", {
 
   ## ci plot
@@ -289,7 +362,7 @@ test_that("objects returned by setup_xxx_plot() have correct structure", {
   effect_names <- c("Direct", ab_names)
   expect_identical(ci$ci$Effect, factor(effect_names, levels = effect_names))
   # check confidence level
-  expect_identical(ci$level, level)
+  expect_identical(ci$level, level[1])
   # check logical for multiple methods
   expect_false(ci$have_methods)
 
@@ -312,7 +385,7 @@ test_that("objects returned by setup_xxx_plot() have correct structure", {
   # check type of test
   expect_identical(density$test, "boot")
   # check confidence level
-  expect_identical(density$level, level)
+  expect_identical(density$level, level[1])
   # check logical for multiple effects
   expect_true(density$have_effect)
   # check logical for multiple methods
@@ -320,67 +393,6 @@ test_that("objects returned by setup_xxx_plot() have correct structure", {
 
   ## ellipse_plot
   expect_error(setup_ellipse_plot(boot))
-
-})
-
-
-## deprecated:
-
-test_that("data returned by fortify() has correct structure", {
-
-  ## dot plot
-  # check dimensions
-  expect_s3_class(dot_deprecated, "data.frame")
-  expect_identical(dim(dot_deprecated), c(4L, 4L))
-  # check column names
-  column_names <- c("Effect", "Point", "Lower", "Upper")
-  expect_named(dot_deprecated, column_names)
-  # check that direct effect and indirect effect are plotted by default
-  effect_names <- c("Direct", ab_names)
-  expect_identical(dot_deprecated$Effect, factor(effect_names, levels = effect_names))
-
-  ## density plot
-  # check dimensions
-  expect_s3_class(density_deprecated, "data.frame")
-  expect_identical(ncol(density_deprecated), 3L)
-  expect_gt(nrow(density_deprecated), 0L)
-  # check column names
-  column_names <- c("ab", "Density", "Effect")
-  expect_named(density_deprecated, column_names)
-
-})
-
-test_that("data returned by fortify() has correct attributes", {
-
-  ## dot plot
-  # check aesthetic mapping
-  mapping <- aes_string(x = "Effect", y = "Point",
-                        ymin = "Lower", ymax = "Upper")
-  expect_equal(attr(dot_deprecated, "mapping"), mapping)
-  # check default geom()
-  expect_identical(attr(dot_deprecated, "geom"), geom_pointrange)
-  # check facets
-  expect_null(attr(dot_deprecated, "facets"))
-  # check that method is stored correctly
-  expect_identical(attr(dot_deprecated, "method"), "dot")
-
-  ## density plot
-  # check aesthetic mapping
-  mapping <- aes_string(x = "ab", y = "Density")
-  expect_equal(attr(density_deprecated, "mapping"), mapping)
-  # check default geom()
-  expect_equal(attr(density_deprecated, "geom"), robmed:::geom_densityline)
-  # check facets
-  expect_equal(attr(density_deprecated, "facets"), ~Effect)
-  # check title
-  expect_identical(attr(density_deprecated, "main"), "Bootstrap distribution")
-  # check confidence interval
-  ci <- attr(density_deprecated, "ci")
-  expect_s3_class(ci, "data.frame")
-  expect_identical(dim(ci), c(3L, 5L))
-  expect_named(ci, c("ab", "Density", "Lower", "Upper", "Effect"))
-  # check that method is stored correctly
-  expect_identical(attr(density_deprecated, "method"), "density")
 
 })
 

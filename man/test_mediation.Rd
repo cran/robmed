@@ -12,23 +12,52 @@
 \usage{
 test_mediation(object, ...)
 
-\method{test_mediation}{formula}(formula, data, test = c("boot",
-  "sobel"), alternative = c("twosided", "less", "greater"), R = 5000,
-  level = 0.95, type = c("bca", "perc"), method = c("regression",
-  "covariance"), robust = TRUE, median = FALSE, control = NULL, ...)
+\method{test_mediation}{formula}(
+  formula,
+  data,
+  test = c("boot", "sobel"),
+  alternative = c("twosided", "less", "greater"),
+  R = 5000,
+  level = 0.95,
+  type = c("bca", "perc"),
+  method = c("regression", "covariance"),
+  robust = TRUE,
+  family = "gaussian",
+  fit_yx = TRUE,
+  control = NULL,
+  ...
+)
 
-\method{test_mediation}{default}(object, x, y, m, covariates = NULL,
-  test = c("boot", "sobel"), alternative = c("twosided", "less",
-  "greater"), R = 5000, level = 0.95, type = c("bca", "perc"),
-  method = c("regression", "covariance"), robust = TRUE,
-  median = FALSE, control = NULL, ...)
+\method{test_mediation}{default}(
+  object,
+  x,
+  y,
+  m,
+  covariates = NULL,
+  test = c("boot", "sobel"),
+  alternative = c("twosided", "less", "greater"),
+  R = 5000,
+  level = 0.95,
+  type = c("bca", "perc"),
+  method = c("regression", "covariance"),
+  robust = TRUE,
+  family = "gaussian",
+  fit_yx = TRUE,
+  control = NULL,
+  ...
+)
 
-\method{test_mediation}{fit_mediation}(object, test = c("boot", "sobel"),
-  alternative = c("twosided", "less", "greater"), R = 5000,
-  level = 0.95, type = c("bca", "perc"), ...)
+\method{test_mediation}{fit_mediation}(
+  object,
+  test = c("boot", "sobel"),
+  alternative = c("twosided", "less", "greater"),
+  R = 5000,
+  level = 0.95,
+  type = c("bca", "perc"),
+  ...
+)
 
-robmed(..., test = "boot", method = "regression", robust = TRUE,
-  median = FALSE)
+robmed(..., test = "boot", method = "regression", robust = TRUE)
 }
 \arguments{
 \item{object}{the first argument will determine the method of the generic
@@ -82,8 +111,19 @@ specified or if control variables are supplied.}
 \code{"MM"} specifying the MM-estimator of regression, and \code{"median"}
 specifying median regression.}
 
-\item{median}{deprecated.  This argument will be removed in future
-versions.  Use \code{robust = "median"} for median regression.}
+\item{family}{a character string specifying the error distribution to be
+used in maximum likelihood estimation of regression models.  Possible values
+are \code{"gaussian"} for a normal distribution (the default),
+\code{skewnormal} for a skew-normal distribution, \code{"student"} for
+Student's t distribution, \code{"skew-t"} for a skew-t distribution, or
+\code{"select"} to select among these four distributions via BIC (see
+\code{\link{fit_mediation}()} for details).  This is only relevant if
+\code{method = "regression"} and \code{robust = FALSE}.}
+
+\item{fit_yx}{a logical indicating whether to fit the regression model
+\code{y ~ x + covariates} to estimate the total effect (the default is
+\code{TRUE}).  This is only relevant if \code{method = "regression"} and
+\code{robust = FALSE}.}
 
 \item{control}{a list of tuning parameters for the corresponding robust
 method.  For robust regression (\code{method = "regression"}, and
@@ -213,6 +253,10 @@ Alfons, A., Ates, N.Y. and Groenen, P.J.F. (2018) A robust bootstrap test
 for mediation analysis.  \emph{ERIM Report Series in Management}, Erasmus
 Research Institute of Management.  URL
 \url{https://hdl.handle.net/1765/109594}.
+
+Azzalini, A. and Arellano-Valle, R. B. (2013) Maximum penalized likelihood
+estimation for skew-normal and skew-t distributions.  \emph{Journal of
+Statistical Planning and Inference}, \bold{143}(2), 419--433.
 
 Preacher, K.J. and Hayes, A.F. (2004) SPSS and SAS procedures for estimating
 indirect effects in simple mediation models. \emph{Behavior Research Methods,

@@ -3,9 +3,9 @@
 #         Erasmus Universiteit Rotterdam
 # --------------------------------------
 
-#' Confidence intervals for (robust) mediation analysis
+#' Confidence intervals from (robust) mediation analysis
 #'
-#' Extract or compute confidence intervals for coefficients from (robust)
+#' Extract or compute confidence intervals for effects in (robust)
 #' mediation analysis.
 #'
 #' @name confint.test_mediation
@@ -38,7 +38,8 @@
 #' @author Andreas Alfons
 #'
 #' @seealso
-#' \code{\link{test_mediation}()}, \code{\link[=coef.test_mediation]{coef}()}
+#' \code{\link{test_mediation}()}, \code{\link[=coef.test_mediation]{coef}()},
+#' \code{\link{p_value}()}, \code{\link[boot]{boot.ci}()}
 #'
 #' @examples
 #' data("BSG2014")
@@ -71,21 +72,7 @@ NULL
 ## argument 'level' is ignored
 confint.boot_test_mediation <- function(object, parm = NULL, level = NULL,
                                         type = c("boot", "data"), ...) {
-  # for compatibility with previous versions
-  other <- list(...)$other
-  if (missing(type) && !is.null(other)) {
-    other <- match.arg(other, choices = c("boot", "theory"))
-    if (other == "boot") {
-      warning("Argument 'other = \"boot\"' is deprecated.\n",
-              "Use 'type = \"boot\"' instead.", call. = FALSE)
-      type <- "boot"
-    } else if (other == "theory") {
-      warning("Argument 'other = \"theory\"' is deprecated.\n",
-              "Use 'type = \"data\"' instead.", call. = FALSE)
-      type <- "data"
-    }
-  }
-  # initializations
+  # number of hypothesized mediators
   p_m <- length(object$fit$m)
   # confidence interval of other effects
   type <- match.arg(type)
@@ -130,7 +117,6 @@ confint.sobel_test_mediation <- function(object, parm = NULL, level = 0.95,
 # there is no confint() method for median regression results
 #' @export
 confint.rq <- function(object, parm = NULL, level = 0.95, ...) {
-
   # compute the usual summary and extract coefficient matrix
   summary <- summary(object, se = "iid")
   coef_mat <- coef(summary)
@@ -139,7 +125,7 @@ confint.rq <- function(object, parm = NULL, level = 0.95, ...) {
   coef <- coef_mat[, 1L]
   se <- coef_mat[, 2L]
   # check parameters to extract
-  if (missing(parm)) parm <- coef_names
+  if (missing(parm) || is.null(parm)) parm <- coef_names
   else if (is.numeric(parm)) parm <- coef_names[parm]
   # significance level and quantile of the t distribution
   a <- (1 - level) / 2
@@ -206,7 +192,7 @@ get_confint.reg_fit_mediation <- function(object, parm = NULL, level = 0.95,
     confint_ymx <- confint(object$fit_ymx, parm = 1L + seq_len(p_m + 1L),
                            level = level)
     # compute confidence interval for total effect
-    if(is_robust(object)) {
+    if(is.null(object$fit_yx)) {
       # confidence interval not available
       confint_yx <- rep.int(NA_real_, 2L)
     } else {

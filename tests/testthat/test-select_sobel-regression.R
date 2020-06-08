@@ -1,8 +1,9 @@
-context("Sobel test: median regression")
+context("Sobel test: regression with skewed errors")
 
 
 ## load package
 library("robmed", quietly = TRUE)
+library("sn", quietly = TRUE)
 
 ## control parameters
 n <- 250          # number of observations
@@ -16,16 +17,17 @@ set.seed(seed)
 
 ## generate data
 X <- rnorm(n)
-M1 <- a * X + rnorm(n)
+M1 <- a * X + rsn(n, alpha = 10)
 M2 <- rnorm(n)
-Y <- b * M1 + c * X + rnorm(n)
+Y <- b * M1 + c * X + rsn(n, alpha = 10)
 C1 <- rnorm(n)
 C2 <- rnorm(n)
 test_data <- data.frame(X, Y, M1, M2, C1, C2)
 
 ## run bootstrap test
-sobel <- test_mediation(test_data, x = "X", y = "Y", m = "M1", test = "sobel",
-                        method = "regression", robust = "median")
+sobel <- test_mediation(test_data, x = "X", y = "Y", m = "M1",
+                        test = "sobel", method = "regression",
+                        robust = FALSE, family = "select")
 
 ## compute summary
 summary_sobel <- summary(sobel)
@@ -41,8 +43,8 @@ density <- setup_density_plot(sobel, level = level)
 
 ## stuff needed to check correctness
 coef_names <- c("a", "b", "Direct", "Total", "ab")
-mx_names <- c("(Intercept)", "X")
-ymx_names <- c("(Intercept)", "M1", "X")
+mx_names <- c("(Intercept.CP)", "X")
+ymx_names <- c("(Intercept.CP)", "M1", "X")
 
 
 ## run tests
@@ -76,8 +78,8 @@ test_that("arguments are correctly passed", {
   expect_identical(sobel$fit$m, "M1")
   expect_identical(sobel$fit$covariates, character())
   # robust fit and test
-  expect_identical(sobel$fit$robust, "median")
-  expect_identical(sobel$fit$family, "gaussian")
+  expect_false(sobel$fit$robust)
+  expect_identical(sobel$fit$family, "select")
   expect_null(sobel$fit$control)
 
 })
@@ -143,10 +145,20 @@ test_that("summary has correct structure", {
   # summary of the model fit
   expect_s3_class(summary_sobel$summary, "summary_reg_fit_mediation")
   expect_s3_class(summary_sobel$summary, "summary_fit_mediation")
-  # summary for model m ~ x
-  expect_s3_class(summary_sobel$summary$fit_mx, "summary_rq")
+  # summary for models m ~ x
+  expect_s3_class(summary_sobel$summary$fit_mx, "summary_lmse")
   # summary for model y ~ m + x
-  expect_s3_class(summary_sobel$summary$fit_ymx, "summary_rq")
+  expect_s3_class(summary_sobel$summary$fit_ymx, "summary_lmse")
+  # parameters of skew-elliptical distribution
+  # -----
+  # R version 4.0.1 now uses class "matrix" as a subclass of "array"
+  # expect_identical(class(summary_sobel$summary$fit_ymx$parameters), "matrix")
+  # -----
+  expect_true("matrix" %in% class(summary_sobel$summary$fit_ymx$parameters))
+  # -----
+  expect_identical(nrow(summary_sobel$summary$fit_ymx$parameters), 2L)
+  expect_identical(colnames(summary_sobel$summary$fit_ymx$parameters),
+                   c("Estimate", "Std. Error"))
   # regression standard error for model y ~ m + x
   expect_null(summary_sobel$summary$fit_ymx$s)
   # R-squared for model y ~ m + x
@@ -159,7 +171,7 @@ test_that("summary has correct structure", {
 test_that("attributes are correctly passed through summary", {
 
   # robustness
-  expect_identical(summary_sobel$summary$robust, "median")
+  expect_false(summary_sobel$summary$robust)
   # number of observations
   expect_identical(summary_sobel$summary$n, as.integer(n))
   # variable names
@@ -173,13 +185,19 @@ test_that("attributes are correctly passed through summary", {
 test_that("effect summaries have correct names", {
 
   # a path
-  expect_identical(dim(summary_sobel$summary$fit_mx$coefficients), c(2L, 4L))
-  expect_identical(rownames(summary_sobel$summary$fit_mx$coefficients), mx_names)
-  expect_identical(colnames(summary_sobel$summary$fit_mx$coefficients)[1], "Estimate")
+  expect_identical(dim(summary_sobel$summary$fit_mx$coefficients),
+                   c(2L, 4L))
+  expect_identical(rownames(summary_sobel$summary$fit_mx$coefficients),
+                   mx_names)
+  expect_identical(colnames(summary_sobel$summary$fit_mx$coefficients)[1],
+                   "Estimate")
   # b path
-  expect_identical(dim(summary_sobel$summary$fit_ymx$coefficients), c(3L, 4L))
-  expect_identical(rownames(summary_sobel$summary$fit_ymx$coefficient), ymx_names)
-  expect_identical(colnames(summary_sobel$summary$fit_ymx$coefficient)[1], "Estimate")
+  expect_identical(dim(summary_sobel$summary$fit_ymx$coefficients),
+                   c(3L, 4L))
+  expect_identical(rownames(summary_sobel$summary$fit_ymx$coefficient),
+                   ymx_names)
+  expect_identical(colnames(summary_sobel$summary$fit_ymx$coefficient)[1],
+                   "Estimate")
   # direct effect
   expect_identical(dim(summary_sobel$summary$direct), c(1L, 4L))
   expect_identical(rownames(summary_sobel$summary$direct), "X")
@@ -193,10 +211,14 @@ test_that("effect summaries have correct names", {
 
 test_that("effect summaries contain correct coefficient values", {
 
-  expect_identical(summary_sobel$summary$fit_mx$coefficients["X", "Estimate"], sobel$fit$a)
-  expect_identical(summary_sobel$summary$fit_ymx$coefficients["M1", "Estimate"], sobel$fit$b)
-  expect_identical(summary_sobel$summary$direct["X", "Estimate"], sobel$fit$direct)
-  expect_identical(summary_sobel$summary$total["X", "Estimate"], sobel$fit$total)
+  expect_identical(summary_sobel$summary$fit_mx$coefficients["X", "Estimate"],
+                   sobel$fit$a)
+  expect_identical(summary_sobel$summary$fit_ymx$coefficients["M1", "Estimate"],
+                   sobel$fit$b)
+  expect_identical(summary_sobel$summary$direct["X", "Estimate"],
+                   sobel$fit$direct)
+  expect_identical(summary_sobel$summary$total["X", "Estimate"],
+                   sobel$fit$total)
 
 })
 
@@ -226,8 +248,8 @@ test_that("arguments of retest() are correctly passed", {
   expect_identical(sobel_less$statistic, sobel$statistic)
   expect_identical(sobel_greater$statistic, sobel$statistic)
   # p-value
-  expect_equal(sobel_less$p_value, 1-sobel$p_value/2)
-  expect_equal(sobel_greater$p_value, sobel$p_value/2)
+  expect_equal(sobel_less$p_value, sobel$p_value/2)
+  expect_equal(sobel_greater$p_value, 1-sobel$p_value/2)
 
 })
 
@@ -291,14 +313,17 @@ test_that("objects returned by setup_xxx_plot() have correct structure", {
 
 # run mediation analysis through formula interface with data argument
 sobel_f1 <- test_mediation(Y ~ m(M1) + X, data = test_data, test = "sobel",
-                           method = "regression", robust = "median")
+                           method = "regression", robust = FALSE,
+                           family = "select")
 # run mediation analysis through formula interface without data argument
 sobel_f2 <- test_mediation(Y ~ m(M1) + X, test = "sobel",
-                           method = "regression", robust = "median")
+                           method = "regression", robust = FALSE,
+                           family = "select")
 # define mediator outside formula
 med <- m(M1)
 sobel_f3 <- test_mediation(Y ~ med + X, data = test_data, test = "sobel",
-                           method = "regression", robust = "median")
+                           method = "regression", robust = FALSE,
+                           family = "select")
 
 
 test_that("formula interface works correctly", {

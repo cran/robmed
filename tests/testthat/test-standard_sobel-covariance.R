@@ -30,14 +30,15 @@ sobel <- test_mediation(test_data, x = "X", y = "Y", m = "M1", test = "sobel",
 ## compute summary
 summary_sobel <- summary(sobel)
 
+## retest with different parameters
+sobel_less <- retest(sobel, alternative = "less")
+sobel_greater <- retest(sobel, alternative = "greater")
+
 ## create data for plotting
 level <- 0.9
 ci <- setup_ci_plot(sobel, level = level)
 density <- setup_density_plot(sobel, level = level)
 ellipse <- setup_ellipse_plot(sobel)
-# deprecated:
-dot_deprecated <- suppressWarnings(fortify(sobel, method = "dot"))
-density_deprecated <- suppressWarnings(fortify(sobel, method = "density"))
 
 ## stuff needed to check correctness
 coef_names <- c("a", "b", "Direct", "Total", "ab")
@@ -196,6 +197,46 @@ test_that("effect summaries contain correct coefficient values", {
 
 })
 
+test_that("output of retest() has correct structure", {
+
+  # Sobel test
+  expect_identical(class(sobel_less), class(sobel))
+  expect_identical(class(sobel_greater), class(sobel))
+  # regression fit
+  expect_identical(sobel_less$fit, sobel$fit)
+  expect_identical(sobel_greater$fit, sobel$fit)
+
+})
+
+test_that("arguments of retest() are correctly passed", {
+
+  # alternative hypothesis
+  expect_identical(sobel_less$alternative, "less")
+  expect_identical(sobel_greater$alternative, "greater")
+  # indirect effect
+  expect_identical(sobel_less$ab, sobel$ab)
+  expect_identical(sobel_greater$ab, sobel$ab)
+  # standard error
+  expect_identical(sobel_less$se, sobel$se)
+  expect_identical(sobel_greater$se, sobel$se)
+  # test statistic
+  expect_identical(sobel_less$statistic, sobel$statistic)
+  expect_identical(sobel_greater$statistic, sobel$statistic)
+  # p-value
+  expect_equal(sobel_less$p_value, 1-sobel$p_value/2)
+  expect_equal(sobel_greater$p_value, sobel$p_value/2)
+
+})
+
+test_that("output of p_value() method has correct attributes", {
+
+  p_data <- p_value(sobel, parm = NULL)
+  expect_length(p_data, 5L)
+  expect_named(p_data, coef_names)
+  expect_equivalent(p_data["ab"], sobel$p_value)
+
+})
+
 test_that("objects returned by setup_xxx_plot() have correct structure", {
 
   ## ci plot
@@ -241,67 +282,6 @@ test_that("objects returned by setup_xxx_plot() have correct structure", {
 
   ## ellipse_plot
   expect_identical(ellipse, setup_ellipse_plot(sobel$fit))
-
-})
-
-
-## deprecated:
-
-test_that("data returned by fortify() has correct structure", {
-
-  ## dot plot
-  # check dimensions
-  expect_s3_class(dot_deprecated, "data.frame")
-  expect_identical(dim(dot_deprecated), c(2L, 4L))
-  # check column names
-  column_names <- c("Effect", "Point", "Lower", "Upper")
-  expect_named(dot_deprecated, column_names)
-  # check that direct effect and indirect effect are plotted by default
-  effect_names <- c("Direct", "ab")
-  expect_identical(dot_deprecated$Effect, factor(effect_names, levels = effect_names))
-
-  ## density plot
-  # check dimensions
-  expect_s3_class(density_deprecated, "data.frame")
-  expect_identical(ncol(density_deprecated), 2L)
-  expect_gt(nrow(density_deprecated), 0L)
-  # check column names
-  column_names <- c("ab", "Density")
-  expect_named(density_deprecated, column_names)
-
-})
-
-test_that("data returned by fortify() has correct attributes", {
-
-  ## dot plot
-  # check aesthetic mapping
-  mapping <- aes_string(x = "Effect", y = "Point",
-                        ymin = "Lower", ymax = "Upper")
-  expect_equal(attr(dot_deprecated, "mapping"), mapping)
-  # check default geom()
-  expect_identical(attr(dot_deprecated, "geom"), geom_pointrange)
-  # check facets
-  expect_null(attr(dot_deprecated, "facets"))
-  # check that method is stored correctly
-  expect_identical(attr(dot_deprecated, "method"), "dot")
-
-  ## density plot
-  # check aesthetic mapping
-  mapping <- aes_string(x = "ab", y = "Density")
-  expect_equal(attr(density_deprecated, "mapping"), mapping)
-  # check default geom()
-  expect_equal(attr(density_deprecated, "geom"), robmed:::geom_densityline)
-  # check facets
-  expect_null(attr(density_deprecated, "facets"))
-  # check title
-  expect_identical(attr(density_deprecated, "main"), "Assumed normal distribution")
-  # check confidence interval
-  ci <- attr(density_deprecated, "ci")
-  expect_s3_class(ci, "data.frame")
-  expect_identical(dim(ci), c(1L, 4L))
-  expect_named(ci, c("ab", "Density", "Lower", "Upper"))
-  # check that method is stored correctly
-  expect_identical(attr(density_deprecated, "method"), "density")
 
 })
 

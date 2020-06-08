@@ -1,8 +1,9 @@
-context("median regression fit: single mediator, no covariates")
+context("regression fit with skewed errors: single mediator, no covariates")
 
 
 ## load package
 library("robmed", quietly = TRUE)
+library("sn", quietly = TRUE)
 
 ## control parameters
 n <- 250            # number of observations
@@ -15,13 +16,14 @@ set.seed(seed)
 
 ## generate data
 X <- rnorm(n)
-M <- a * X + rnorm(n)
-Y <- b * M + c * X + rnorm(n)
+M <- a * X + rsn(n, alpha = 10)
+Y <- b * M + c * X + rsn(n, alpha = 10)
 test_data <- data.frame(X, Y, M)
 
 ## fit mediation model and compute summary
 foo <- fit_mediation(test_data, x = "X", y = "Y", m = "M",
-                     method = "regression", robust = "median")
+                     method = "regression", robust = FALSE,
+                     family = "select")
 bar <- summary(foo)
 
 
@@ -33,9 +35,9 @@ test_that("output has correct structure", {
   expect_s3_class(foo, "reg_fit_mediation")
   expect_s3_class(foo, "fit_mediation")
   # individual regressions
-  expect_s3_class(foo$fit_mx, "rq")
-  expect_s3_class(foo$fit_ymx, "rq")
-  expect_null(foo$fit_yx)
+  expect_s3_class(foo$fit_mx, "lmse")
+  expect_s3_class(foo$fit_ymx, "lmse")
+  expect_s3_class(foo$fit_yx, "lmse")
 
 })
 
@@ -47,8 +49,8 @@ test_that("arguments are correctly passed", {
   expect_identical(foo$m, "M")
   expect_identical(foo$covariates, character())
   # robust fit
-  expect_identical(foo$robust, "median")
-  expect_identical(foo$family, "gaussian")
+  expect_false(foo$robust)
+  expect_identical(foo$family, "select")
   expect_null(foo$control)
 
 })
@@ -73,7 +75,7 @@ test_that("values of coefficients are correct", {
   expect_equivalent(foo$a, coef(foo$fit_mx)["X"])
   expect_equivalent(foo$b, coef(foo$fit_ymx)["M"])
   expect_equivalent(foo$direct, coef(foo$fit_ymx)["X"])
-  expect_equivalent(foo$total, foo$a * foo$b + foo$direct)
+  expect_equivalent(foo$total, coef(foo$fit_yx)["X"])
 
 })
 
@@ -108,14 +110,17 @@ test_that("object returned by setup_ellipse_plot() has correct structure", {
 
 # fit mediation model through formula interface with data argument
 fit_f1 <- fit_mediation(Y ~ m(M) + X, data = test_data,
-                        method = "regression", robust = "median")
+                        method = "regression", robust = FALSE,
+                        family = "select")
 # fit mediation model through formula interface without data argument
 fit_f2 <- fit_mediation(Y ~ m(M) + X,
-                        method = "regression", robust = "median")
+                        method = "regression", robust = FALSE,
+                        family = "select")
 # define mediator outside formula
 med <- m(M)
 fit_f3 <- fit_mediation(Y ~ med + X, data = test_data,
-                        method = "regression", robust = "median")
+                        method = "regression", robust = FALSE,
+                        family = "select")
 
 
 test_that("formula interface works correctly", {

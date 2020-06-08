@@ -1,8 +1,9 @@
-context("median regression fit: multiple mediators, covariates")
+context("regression fit with skewed errors: multiple mediators, covariates")
 
 
 ## load package
 library("robmed", quietly = TRUE)
+library("sn", quietly = TRUE)
 
 ## control parameters
 n <- 250            # number of observations
@@ -15,9 +16,9 @@ set.seed(seed)
 
 ## generate data
 X <- rnorm(n)
-M1 <- a * X + rnorm(n)
+M1 <- a * X + rsn(n, alpha = 10)
 M2 <- rnorm(n)
-Y <- b * M1 + c * X + rnorm(n)
+Y <- b * M1 + c * X + rsn(n, alpha = 10)
 C1 <- rnorm(n)
 C2 <- rnorm(n)
 test_data <- data.frame(X, Y, M1, M2, C1, C2)
@@ -25,7 +26,7 @@ test_data <- data.frame(X, Y, M1, M2, C1, C2)
 ## fit mediation model and compute summary
 foo <- fit_mediation(test_data, x = "X", y = "Y", m = c("M1", "M2"),
                      covariates = c("C1", "C2"), method = "regression",
-                     robust = "median")
+                     robust = FALSE, family = "select")
 bar <- summary(foo)
 
 
@@ -40,10 +41,10 @@ test_that("output has correct structure", {
   expect_type(foo$fit_mx, "list")
   expect_length(foo$fit_mx, 2L)
   expect_named(foo$fit_mx, c("M1", "M2"))
-  expect_s3_class(foo$fit_mx$M1, "rq")
-  expect_s3_class(foo$fit_mx$M2, "rq")
-  expect_s3_class(foo$fit_ymx, "rq")
-  expect_null(foo$fit_yx)
+  expect_s3_class(foo$fit_mx$M1, "lmse")
+  expect_s3_class(foo$fit_mx$M2, "lm")
+  expect_s3_class(foo$fit_ymx, "lmse")
+  expect_s3_class(foo$fit_yx, "lmse")
 
 })
 
@@ -55,8 +56,8 @@ test_that("arguments are correctly passed", {
   expect_identical(foo$m, c("M1", "M2"))
   expect_identical(foo$covariates, c("C1", "C2"))
   # robust fit
-  expect_identical(foo$robust, "median")
-  expect_identical(foo$family, "gaussian")
+  expect_false(foo$robust)
+  expect_identical(foo$family, "select")
   expect_null(foo$control)
 
 })
@@ -84,7 +85,7 @@ test_that("values of coefficients are correct", {
   expect_named(foo$a, c("M1", "M2"))
   expect_equal(foo$b, coef(foo$fit_ymx)[c("M1", "M2")])  # also checks names
   expect_equivalent(foo$direct, coef(foo$fit_ymx)["X"])
-  expect_equivalent(foo$total, sum(foo$a * foo$b) + foo$direct)
+  expect_equivalent(foo$total, coef(foo$fit_yx)["X"])
 
 })
 
@@ -122,15 +123,17 @@ test_that("object returned by setup_ellipse_plot() has correct structure", {
 # fit mediation model through formula interface with data argument
 fit_f1 <- fit_mediation(Y ~ m(M1, M2) + X + covariates(C1, C2),
                         data = test_data, method = "regression",
-                        robust = "median")
+                        robust = FALSE, family = "select")
 # fit mediation model through formula interface without data argument
 fit_f2 <- fit_mediation(Y ~ m(M1, M2) + X + covariates(C1, C2),
-                        method = "regression", robust = "median")
+                        method = "regression", robust = FALSE,
+                        family = "select")
 # define mediators and covariates outside formula
 med <- m(M1, M2)
 cov <- covariates(C1, C2)
 fit_f3 <- fit_mediation(Y ~ med + X + cov, data = test_data,
-                        method = "regression", robust = "median")
+                        method = "regression", robust = FALSE,
+                        family = "select")
 
 
 test_that("formula interface works correctly", {

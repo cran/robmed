@@ -10,7 +10,13 @@ print_info <- function(x, ...) UseMethod("print_info")
 print_info.reg_fit_mediation <- function(x, ...) {
   prefix <- if (is_robust(x)) "Robust mediation" else "Mediation"
   if (x$robust == "median") postfix <- "via median regression"
-  else postfix <- "via regression"
+  else {
+    errors <- switch(x$family, student = " with t errors",
+                     skewnormal = " with skew-normal errors",
+                     skewt = " with skew-t errors",
+                     select = " with selection of error distribution")
+    postfix <- paste0("via regression", errors)
+  }
   cat(sprintf("%s model fit %s\n", prefix, postfix))
 }
 
@@ -27,7 +33,13 @@ print_info.boot_test_mediation <- function(x, ...) {
   if (inherits(x$fit, "reg_fit_mediation")) {
     prefix <- if (fit$robust == "MM") "Robust bootstrap" else "Bootstrap"
     if (fit$robust == "median") postfix <- " via median regression"
-    else postfix <- " via regression"
+    else {
+      errors <- switch(fit$family, student = " with t errors",
+                       skewnormal = " with skew-normal errors",
+                       skewt = " with skew-t errors",
+                       select = "\nError distribution is selected via BIC")
+      postfix <- paste0(" via regression", errors)
+    }
   } else if (inherits(fit, "cov_fit_mediation")) {
     prefix <- if (fit$robust) "Robust bootstrap" else "Bootstrap"
     postfix <- " via covariance matrix"
@@ -50,7 +62,12 @@ print_info.sobel_test_mediation <- function(x, ...) {
   if (inherits(x$fit, "reg_fit_mediation")) {
     prefix <- if (fit$robust == "MM") "Robust normal" else "Normal"
     if (fit$robust == "median") postfix <- " via median regression"
-    else postfix <- " via regression"
+    else {
+      errors <- switch(fit$family, student = " with t errors",
+                       skewnormal = " with skew-normal errors",
+                       skewt = " with skew-t errors")
+      postfix <- paste0(" via regression", errors)
+    }
   } else if (inherits(fit, "cov_fit_mediation")) {
     prefix <- if (fit$robust) "Robust normal" else "Normal"
     postfix <- " via covariance matrix"
@@ -198,7 +215,17 @@ print.summary_lmrob <- function(x, digits = max(3, getOption("digits")-3),
                                 signif.stars = getOption("show.signif.stars"),
                                 signif.legend = signif.stars, ...) {
   # print coefficient matrix
-  cat("Coefficients:\n")
+  # check if algorithm converged and print information accordingly
+  if (x$algorithm$converged) cat("Coefficients:\n")
+  else if (x$s$value == 0) cat("Exact fit detected\n\nCoefficients:\n")
+  else {
+    cat("Algorithm did not converge\n\n")
+    if (x$algorithm$method == "S") {
+      cat("Coefficients of the *initial* S-estimator:\n")
+    } else {
+      cat(sprintf("Coefficients of the %s-estimator:\n", x$algorithm$method))
+    }
+  }
   printCoefmat(x$coefficients, digits = digits, signif.stars = signif.stars,
                signif.legend = signif.legend, ...)
   # print model summary
@@ -210,8 +237,83 @@ print.summary_lmrob <- function(x, digits = max(3, getOption("digits")-3),
   cat("Robust F-statistic: ", formatC(x$F_test$statistic, digits = digits),
       " on ", x$F_test$df[1], " and ", x$F_test$df[2], " DF,  p-value: ",
       format.pval(x$F_test$p_value, digits = digits), "\n", sep = "")
+  # print information on robustness weights
+  cat("\nRobustness weights:\n")
+  # -----
+  # indices <- x$outliers$indices
+  # n_outliers <- length(indices)
+  # if (n_outliers == 0) {
+  #   # print that there is no clear outlier and minimum robustness weight
+  #   cat("No observations are clear outliers with weight < ",
+  #       formatC(x$outliers$threshold, digits = max(2, digits-3), width = 1),
+  #       ". The minimum weight is ",
+  #       formatC(min(x$outliers$weights), digits = max(2, digits-3), width = 1),
+  #       ".\n", sep = "")
+  # } else if (n_outliers == 1) {
+  #   # robustness weight of clear outlier
+  #   outlier_weight <- x$outliers$weights[indices]
+  #   # print information on clear outliers
+  #   cat("Observation ", indices, " is a clear outlier with weight ",
+  #       formatC(outlier_weight, digits = max(2, digits-3), width = 1),
+  #       # " < ",
+  #       # formatC(x$outliers$threshold, digits = max(2, digits-3), width = 1),
+  #       "\n", sep = "")
+  # } else {
+  #   # largest weight still below the outlier threshold
+  #   max_outlier_weight <- max(x$outliers$weights[indices])
+  #   # print information on outliers
+  #   cat(n_outliers, " observations are clear outliers with weight <= ",
+  #       formatC(max_outlier_weight, digits = max(2, digits-3), width = 1),
+  #       ":\n", sep = "")
+  #   print(indices)
+  # }
+  # -----
+  # this is a bit complicated, but allows to print the same information
+  # differently in SPSS extension bundle
+  outlier_info <- get_outlier_info(x$outliers, digits = digits)
+  cat(outlier_info$msg)
+  if (!is.null(outlier_info$indices)) print(outlier_info$indices)
+  # -----
   # return object invisibly
   invisible(x)
+}
+
+# print information on clear outliers and robustness weights
+get_outlier_info <- function(outliers, digits = max(3, getOption("digits")-3)) {
+  # extract indices and number of clear outliers
+  indices <- outliers$indices
+  n_outliers <- length(indices)
+  # prepare information to return
+  if (n_outliers == 0) {
+    # information that there is no clear outlier and minimum robustness weight
+    msg <- paste("No observations are clear outliers with weight < ",
+          formatC(outliers$threshold, digits = max(2, digits-3), width = 1),
+          ". The minimum weight is ",
+          formatC(min(outliers$weights), digits = max(2, digits-3), width = 1),
+          ".\n", sep = "")
+    indices_to_print <- NULL
+  } else if (n_outliers == 1) {
+    # robustness weight of clear outlier
+    outlier_weight <- outliers$weights[indices]
+    # information on clear outlier
+    msg <- paste("Observation ", indices, " is a clear outlier with weight ",
+          formatC(outlier_weight, digits = max(2, digits-3), width = 1),
+          # " < ",
+          # formatC(x$outliers$threshold, digits = max(2, digits-3), width = 1),
+          "\n", sep = "")
+    indices_to_print <- NULL
+  } else {
+    # largest weight still below the outlier threshold
+    max_outlier_weight <- max(outliers$weights[indices])
+    # information on outliers
+    msg <- paste(n_outliers, " observations are clear outliers with weight <= ",
+                 formatC(max_outlier_weight, digits = max(2, digits-3),
+                         width = 1),
+                 ":\n", sep = "")
+    indices_to_print <- indices
+  }
+  # return message and indices to print
+  list(msg = msg, indices = indices_to_print)
 }
 
 #' @export
