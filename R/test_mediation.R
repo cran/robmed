@@ -80,6 +80,10 @@
 #' to be computed in the bootstrap test.  Possible values are \code{"bca"} (the
 #' default) for the bias-corrected and accelerated bootstrap, or \code{"perc"}
 #' for the percentile bootstrap.
+#' @param order  a character string specifying the order of approximation of
+#' the standard error in the Sobel test.  Possible values are \code{"first"}
+#' (the default) for a first-order approximation, and \code{"second"} (the
+#' default) for a second-order approximation.
 #' @param method  a character string specifying the method of estimation for
 #' the mediation model.  Possible values are \code{"regression"} (the default)
 #' to estimate the effects via regressions, or \code{"covariance"} to estimate
@@ -120,8 +124,20 @@
 #' \code{"boot_test_mediation"} if \code{test = "boot"} or
 #' \code{"sobel_test_mediation"} if \code{test = "sobel"}) with the
 #' following components:
-#' \item{ab}{a numeric vector containing the point estimates of the indirect
-#' effects.}
+#' \item{a}{a numeric vector containing the bootstrap point estimates of the
+#' effect of the independent variable on the proposed mediator variables (only
+#' \code{"boot_test_mediation"}).}
+#' \item{b}{a numeric vector containing the bootstrap point estimates of the
+#' direct effect of the proposed mediator variables on the dependent variable
+#' (only \code{"boot_test_mediation"}).}
+#' \item{direct}{numeric; the bootstrap point estimate of the direct effect
+#' of the independent variable on the dependent variable (only
+#' \code{"boot_test_mediation"}).}
+#' \item{total}{numeric; the bootstrap point estimate of the total effect
+#' of the independent variable on the dependent variable (only
+#' \code{"boot_test_mediation"}).}
+#' \item{ab}{a numeric vector containing the bootstrap point estimates of the
+#' indirect effects (only \code{"boot_test_mediation"}).}
 #' \item{ci}{a numeric vector of length two or a matrix of two columns
 #' containing the bootstrap confidence intervals for the indirect effects
 #' (only \code{"boot_test_mediation"}).}
@@ -142,8 +158,8 @@
 #' \item{type}{a character string specifying the type of bootstrap
 #' confidence interval (only \code{"boot_test_mediation"}).}
 #' \item{fit}{an object inheriting from class
-#' \code{"\link{fit_mediation}"} containing the estimation results for the
-#' direct effect and the total effect in the mediation model.}
+#' \code{"\link{fit_mediation}"} containing the estimation results of the
+#' mediation model on the original data.}
 #'
 #' @note For the fast and robust bootstrap, the simpler correction of
 #' Salibian-Barrera & Van Aelst (2008) is used rather than the originally
@@ -239,6 +255,7 @@ test_mediation.formula <- function(formula, data, test = c("boot", "sobel"),
                                    alternative = c("twosided", "less", "greater"),
                                    R = 5000, level = 0.95,
                                    type = c("bca", "perc"),
+                                   order = c("first", "second"),
                                    method = c("regression", "covariance"),
                                    robust = TRUE, family = "gaussian",
                                    fit_yx = TRUE, control = NULL, ...) {
@@ -253,8 +270,8 @@ test_mediation.formula <- function(formula, data, test = c("boot", "sobel"),
                          fit_yx = fit_yx, control = control)
   }
   ## call method for fitted model
-  test_mediation(fit, test = test, alternative = alternative,
-                 R = R, level = level, type = type, ...)
+  test_mediation(fit, test = test, alternative = alternative, R = R,
+                 level = level, type = type, order = order, ...)
 }
 
 
@@ -267,6 +284,7 @@ test_mediation.default <- function(object, x, y, m, covariates = NULL,
                                    alternative = c("twosided", "less", "greater"),
                                    R = 5000, level = 0.95,
                                    type = c("bca", "perc"),
+                                   order = c("first", "second"),
                                    method = c("regression", "covariance"),
                                    robust = TRUE, family = "gaussian",
                                    fit_yx = TRUE, control = NULL, ...) {
@@ -275,8 +293,8 @@ test_mediation.default <- function(object, x, y, m, covariates = NULL,
                        method = method, robust = robust, family = family,
                        fit_yx = fit_yx, control = control)
   ## call method for fitted model
-  test_mediation(fit, test = test, alternative = alternative,
-                 R = R, level = level, type = type, ...)
+  test_mediation(fit, test = test, alternative = alternative, R = R,
+                 level = level, type = type, order = order, ...)
 }
 
 
@@ -288,6 +306,7 @@ test_mediation.fit_mediation <- function(object, test = c("boot", "sobel"),
                                          alternative = c("twosided", "less", "greater"),
                                          R = 5000, level = 0.95,
                                          type = c("bca", "perc"),
+                                         order = c("first", "second"),
                                          ...) {
   ## initializations
   test <- match.arg(test)
@@ -308,8 +327,10 @@ test_mediation.fit_mediation <- function(object, test = c("boot", "sobel"),
     boot_test_mediation(object, alternative = alternative, R = R,
                         level = level, type = type, ...)
   } else if (test == "sobel") {
+    # further inizializations
+    order <- match.arg(order)
     # perform Sobel test
-    sobel_test_mediation(object, alternative = alternative)
+    sobel_test_mediation(object, alternative = alternative, order = order)
   } else stop("test not implemented")
 }
 
@@ -329,7 +350,8 @@ boot_test_mediation <- function(fit,
                                 ...) {
 
   # initializations
-  p_m <- length(fit$m)  # number of mediators
+  p_m <- length(fit$m)                    # number of mediators
+  p_covariates <- length(fit$covariates)  # number of covariates
 
   # check whether we have a regression fit or a covariance fit
   if (inherits(fit, "reg_fit_mediation")) {
@@ -796,25 +818,48 @@ boot_test_mediation <- function(fit,
 
   } else stop("method not implemented")
 
-  # extract indirect effect and confidence interval
+  # get indices of columns of bootstrap replicates that that correspond to
+  # the respective models
+  index_list <- get_index_list(p_m, p_covariates)
+  # extract bootstrap estimates of all effects and confidence interval of the
+  # indirect effect
   if(p_m == 1L) {
-    # only one mediator
-    ab <- mean(bootstrap$t[, 1L], na.rm = TRUE)
-    ci <- confint(bootstrap, parm = 1L, level = level,
+    ## only one mediator
+    # other effects
+    a <- mean(bootstrap$t[, index_list$fit_mx[2L]], na.rm = TRUE)
+    b <- mean(bootstrap$t[, index_list$fit_ymx[2L]], na.rm = TRUE)
+    direct <- mean(bootstrap$t[, index_list$fit_ymx[3L]], na.rm = TRUE)
+    total <- mean(bootstrap$t[, index_list$total], na.rm = TRUE)
+    # indirect effect
+    index_ab <- index_list$ab
+    ab <- mean(bootstrap$t[, index_ab], na.rm = TRUE)
+    ci <- confint(bootstrap, parm = index_ab, level = level,
                   alternative = alternative, type = type)
   } else {
-    # multiple mediators
-    ab <- colMeans(bootstrap$t[, seq_len(1L + p_m)], na.rm = TRUE)
-    ci <- lapply(seq_len(1L + p_m), function(j) {
+    ## multiple mediators
+    # other effects
+    indices_a <- sapply(index_list$fit_mx, "[", 2L)
+    a <- colMeans(bootstrap$t[, indices_a], na.rm = TRUE)
+    names(a) <- names(fit$a)
+    indices_b <- index_list$fit_ymx[1L + seq_len(p_m)]
+    b <- colMeans(bootstrap$t[, indices_b], na.rm = TRUE)
+    names(b) <- names(fit$b)
+    direct <- mean(bootstrap$t[, index_list$fit_ymx[p_m + 2L]], na.rm = TRUE)
+    total <- mean(bootstrap$t[, index_list$total], na.rm = TRUE)
+    # indirect effects
+    indices_ab <- index_list$ab
+    ab <- colMeans(bootstrap$t[, indices_ab], na.rm = TRUE)
+    ci <- lapply(indices_ab, function(j) {
       confint(bootstrap, parm = j, level = level,
               alternative = alternative, type = type)
     })
     ci <- do.call(rbind, ci)
-    names(ab) <- rownames(ci) <- c("Total", fit$m)
+    names(ab) <- rownames(ci) <- names(fit$ab)
   }
 
   # construct return object
-  result <- list(ab = ab, ci = ci, reps = bootstrap, alternative = alternative,
+  result <- list(a = a, b = b, direct = direct, total = total, ab = ab,
+                 ci = ci, reps = bootstrap, alternative = alternative,
                  R = as.integer(R[1L]), level = level, type = type, fit = fit)
   class(result) <- c("boot_test_mediation", "test_mediation")
   result
@@ -825,10 +870,11 @@ boot_test_mediation <- function(fit,
 ## internal function for sobel test
 sobel_test_mediation <- function(fit,
                                  alternative = c("twosided", "less", "greater"),
-                                 ...) {
+                                 order = c("first", "second"), ...) {
   # extract coefficients
   a <- fit$a
   b <- fit$b
+  ab <- fit$ab
   # compute standard errors
   summary <- get_summary(fit)
   if (inherits(fit, "reg_fit_mediation")) {
@@ -839,12 +885,12 @@ sobel_test_mediation <- function(fit,
     sb <- summary$b[, 2L]
   } else stop("not implemented for this type of model fit")
   # compute test statistic and p-Value
-  ab <- a * b
-  se <- sqrt(b^2 * sa^2 + a^2 * sb^2)
+  if (order == "first") se <- sqrt(b^2 * sa^2 + a^2 * sb^2)
+  else se <- sqrt(b^2 * sa^2 + a^2 * sb^2 + sa^2 * sb^2)
   z <- ab / se
   p_value <- p_value_z(z, alternative = alternative)
   # construct return item
-  result <- list(ab = ab, se = se, statistic = z, p_value = p_value,
+  result <- list(se = se, statistic = z, p_value = p_value,
                  alternative = alternative, fit = fit)
   class(result) <- c("sobel_test_mediation", "test_mediation")
   result
@@ -890,7 +936,7 @@ get_index_list <- function(p_m, p_covariates, indirect = TRUE) {
   else p_ab <- 0L
   p_mx <- rep.int(2L + p_covariates, p_m)
   p_ymx <- 2L + p_m + p_covariates
-  p_total <- 1
+  p_total <- 1L
   p_all <- sum(p_ab, p_mx, p_ymx, p_total)
   indices <- seq_len(p_all)
   # the first columns correspond to indirect effect(s) of x on y

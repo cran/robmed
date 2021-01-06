@@ -35,10 +35,12 @@ summary_sobel <- summary(sobel)
 ## retest with different parameters
 sobel_less <- retest(sobel, alternative = "less")
 sobel_greater <- retest(sobel, alternative = "greater")
+sobel_second <- retest(sobel, order = "second")
 
 ## create data for plotting
 level <- 0.9
 ci <- setup_ci_plot(sobel, level = level)
+ci_p <- setup_ci_plot(sobel, level = level, p_value = TRUE)
 density <- setup_density_plot(sobel, level = level)
 
 ## stuff needed to check correctness
@@ -57,8 +59,6 @@ test_that("output has correct structure", {
   # regression fit
   expect_s3_class(sobel$fit, "reg_fit_mediation")
   expect_s3_class(sobel$fit, "fit_mediation")
-  # indirect effect
-  expect_is(sobel$ab, "numeric")
   # standard error
   expect_is(sobel$se, "numeric")
   # test statistic
@@ -86,8 +86,6 @@ test_that("arguments are correctly passed", {
 
 test_that("dimensions are correct", {
 
-  # indirect effect
-  expect_length(sobel$ab, 1L)
   # standard error
   expect_length(sobel$se, 1L)
   # test statistic
@@ -97,23 +95,9 @@ test_that("dimensions are correct", {
 
 })
 
-test_that("values of coefficients are correct", {
-
-  expect_equivalent(sobel$ab, sobel$fit$a * sobel$fit$b)
-
-})
-
-test_that("output of coef() method has correct attributes", {
-
-  coef_sobel <- coef(sobel)
-  expect_length(coef_sobel, 5L)
-  expect_named(coef_sobel, coef_names)
-
-})
-
 test_that("coef() method returns correct values of coefficients", {
 
-  expect_equivalent(coef(sobel, parm = "ab"), sobel$ab)
+  expect_identical(coef(sobel), coef(sobel$fit))
 
 })
 
@@ -165,6 +149,8 @@ test_that("summary has correct structure", {
   expect_null(summary_sobel$summary$fit_ymx$R2)
   # F-test for model y ~ m + x
   expect_null(summary_sobel$summary$fit_ymx$F_test)
+  # no plot is created
+  expect_null(summary_sobel$plot)
 
 })
 
@@ -227,29 +213,32 @@ test_that("output of retest() has correct structure", {
   # Sobel test
   expect_identical(class(sobel_less), class(sobel))
   expect_identical(class(sobel_greater), class(sobel))
-  # regression fit
+  expect_identical(class(sobel_second), class(sobel))
+  # mediation model fit
   expect_identical(sobel_less$fit, sobel$fit)
   expect_identical(sobel_greater$fit, sobel$fit)
+  expect_identical(sobel_second$fit, sobel$fit)
 
 })
 
 test_that("arguments of retest() are correctly passed", {
 
-  # alternative hypothesis
-  expect_identical(sobel_less$alternative, "less")
-  expect_identical(sobel_greater$alternative, "greater")
-  # indirect effect
-  expect_identical(sobel_less$ab, sobel$ab)
-  expect_identical(sobel_greater$ab, sobel$ab)
   # standard error
   expect_identical(sobel_less$se, sobel$se)
   expect_identical(sobel_greater$se, sobel$se)
+  expect_true(sobel_second$se > sobel$se)
   # test statistic
   expect_identical(sobel_less$statistic, sobel$statistic)
   expect_identical(sobel_greater$statistic, sobel$statistic)
+  expect_true(abs(sobel_second$statistic) < abs(sobel$statistic))
   # p-value
   expect_equal(sobel_less$p_value, sobel$p_value/2)
   expect_equal(sobel_greater$p_value, 1-sobel$p_value/2)
+  expect_true(sobel_second$p_value > sobel$p_value)
+  # alternative hypothesis
+  expect_identical(sobel_less$alternative, "less")
+  expect_identical(sobel_greater$alternative, "greater")
+  expect_identical(sobel_second$alternative, sobel$alternative)
 
 })
 
@@ -264,17 +253,43 @@ test_that("output of p_value() method has correct attributes", {
 
 test_that("objects returned by setup_xxx_plot() have correct structure", {
 
-  ## ci plot
+  ## ci plot without p-value
   # check data frame for confidence interval
   expect_s3_class(ci$ci, "data.frame")
   # check dimensions
   expect_identical(dim(ci$ci), c(2L, 4L))
   # check column names
-  column_names <- c("Effect", "Estimate", "Lower", "Upper")
-  expect_named(ci$ci, column_names)
+  expect_named(ci$ci, c("Effect", "Estimate", "Lower", "Upper"))
   # check that direct effect and indirect effect are plotted by default
   effect_names <- c("Direct", "ab")
-  expect_identical(ci$ci$Effect, factor(effect_names, levels = effect_names))
+  effect_factor <- factor(effect_names, levels = effect_names)
+  expect_identical(ci$ci$Effect, effect_factor)
+  # check confidence level
+  expect_identical(ci$level, level)
+  # check logical for multiple methods
+  expect_false(ci$have_methods)
+
+  ## ci plot with p-value
+  # check data frame for confidence interval and p-value
+  expect_s3_class(ci_p$ci, "data.frame")
+  expect_s3_class(ci_p$p_value, "data.frame")
+  # check dimensions
+  expect_identical(dim(ci_p$ci), c(2L, 5L))
+  expect_identical(dim(ci_p$p_value), c(2L, 3L))
+  # check column names
+  expect_named(ci_p$ci, c("Label", "Effect", "Estimate", "Lower", "Upper"))
+  expect_named(ci_p$p_value, c("Label", "Effect", "Value"))
+  # check that labels are correct
+  label_names <- c("Confidence interval", "p-Value")
+  expect_identical(ci_p$ci$Label,
+                   factor(rep.int(label_names[1], 2), levels = label_names))
+  expect_identical(ci_p$p_value$Label,
+                   factor(rep.int(label_names[2], 2), levels = label_names))
+  # check that direct effect and indirect effect are plotted by default
+  effect_names <- c("Direct", "ab")
+  effect_factor <- factor(effect_names, levels = effect_names)
+  expect_identical(ci_p$ci$Effect, effect_factor)
+  expect_identical(ci_p$p_value$Effect, effect_factor)
   # check confidence level
   expect_identical(ci$level, level)
   # check logical for multiple methods
@@ -287,15 +302,13 @@ test_that("objects returned by setup_xxx_plot() have correct structure", {
   expect_identical(ncol(density$density), 2L)
   expect_gt(nrow(density$density), 0L)
   # check column names
-  column_names <- c("ab", "Density")
-  expect_named(density$density, column_names)
+  expect_named(density$density, c("ab", "Density"))
   # check data frame confidence interval
   expect_s3_class(density$ci, "data.frame")
   # check dimensions
   expect_identical(dim(density$ci), c(1L, 3L))
   # check column names
-  column_names <- c("Estimate", "Lower", "Upper")
-  expect_named(density$ci, column_names)
+  expect_named(density$ci, c("Estimate", "Lower", "Upper"))
   # check type of test
   expect_identical(density$test, "sobel")
   # check confidence level
@@ -305,8 +318,9 @@ test_that("objects returned by setup_xxx_plot() have correct structure", {
   # check logical for multiple methods
   expect_false(density$have_methods)
 
-  ## ellipse_plot
+  ## ellipse plot and weight plot
   expect_error(setup_ellipse_plot(sobel))
+  expect_error(setup_weight_plot(sobel))
 
 })
 

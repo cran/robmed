@@ -153,11 +153,7 @@ print.boot_test_mediation <- function(x, digits = max(3, getOption("digits")-3),
   plural <- if (p_m == 1L) "" else "s"
   cat(sprintf("\nIndirect effect%s of x on y:\n", plural))
   # extract indirect effect
-  a <- x$fit$a
-  b <- x$fit$b
-  ab <- a*b
-  if (p_m > 1L) ab <- c(Total = sum(ab), ab)
-  ab <- cbind(Data = ab, Boot = x$ab)
+  ab <- cbind(Data = x$fit$ab, Boot = x$ab)
   if (p_m == 1L) rownames(ab) <- m
   # extract confidence interval
   ci <- if (p_m == 1L) t(x$ci) else x$ci
@@ -178,7 +174,7 @@ print.sobel_test_mediation <- function(x, digits = max(3, getOption("digits")-3)
   if (isTRUE(info)) print_info(x, ...)
   # print indirect effect
   cat("\nIndirect effect of x on y:\n")
-  ab <- cbind(x$ab, x$se, x$statistic, x$p_value)
+  ab <- cbind(x$fit$ab, x$se, x$statistic, x$p_value)
   m <- x$fit$m
   cn <- switch(x$alternative, twosided = "Pr(>|z|)",
                less = "Pr(<z)", greater = "Pr(>z)")
@@ -244,16 +240,16 @@ print.summary_lmrob <- function(x, digits = max(3, getOption("digits")-3),
   # n_outliers <- length(indices)
   # if (n_outliers == 0) {
   #   # print that there is no clear outlier and minimum robustness weight
-  #   cat("No observations are clear outliers with weight < ",
+  #   cat("No potential outliers with weight < ",
   #       formatC(x$outliers$threshold, digits = max(2, digits-3), width = 1),
-  #       ". The minimum weight is ",
+  #       " detected. The minimum weight is ",
   #       formatC(min(x$outliers$weights), digits = max(2, digits-3), width = 1),
   #       ".\n", sep = "")
   # } else if (n_outliers == 1) {
-  #   # robustness weight of clear outlier
+  #   # robustness weight of potential outlier
   #   outlier_weight <- x$outliers$weights[indices]
-  #   # print information on clear outliers
-  #   cat("Observation ", indices, " is a clear outlier with weight ",
+  #   # print information on potential outliers
+  #   cat("Observation ", indices, " is a potential outlier with weight ",
   #       formatC(outlier_weight, digits = max(2, digits-3), width = 1),
   #       # " < ",
   #       # formatC(x$outliers$threshold, digits = max(2, digits-3), width = 1),
@@ -261,8 +257,8 @@ print.summary_lmrob <- function(x, digits = max(3, getOption("digits")-3),
   # } else {
   #   # largest weight still below the outlier threshold
   #   max_outlier_weight <- max(x$outliers$weights[indices])
-  #   # print information on outliers
-  #   cat(n_outliers, " observations are clear outliers with weight <= ",
+  #   # print information on potential outliers
+  #   cat(n_outliers, " observations are potential outliers with weight <= ",
   #       formatC(max_outlier_weight, digits = max(2, digits-3), width = 1),
   #       ":\n", sep = "")
   #   print(indices)
@@ -286,27 +282,30 @@ get_outlier_info <- function(outliers, digits = max(3, getOption("digits")-3)) {
   # prepare information to return
   if (n_outliers == 0) {
     # information that there is no clear outlier and minimum robustness weight
-    msg <- paste("No observations are clear outliers with weight < ",
+    msg <- paste("No potential outliers with weight < ",
           formatC(outliers$threshold, digits = max(2, digits-3), width = 1),
-          ". The minimum weight is ",
+          " detected. The minimum weight is ",
           formatC(min(outliers$weights), digits = max(2, digits-3), width = 1),
           ".\n", sep = "")
     indices_to_print <- NULL
   } else if (n_outliers == 1) {
-    # robustness weight of clear outlier
+    # robustness weight of potential outlier
     outlier_weight <- outliers$weights[indices]
-    # information on clear outlier
-    msg <- paste("Observation ", indices, " is a clear outlier with weight ",
-          formatC(outlier_weight, digits = max(2, digits-3), width = 1),
-          # " < ",
-          # formatC(x$outliers$threshold, digits = max(2, digits-3), width = 1),
-          "\n", sep = "")
+    # information on potential outlier
+    msg <- paste("Observation ", indices,
+                 " is a potential outlier with weight ",
+                 formatC(outlier_weight, digits = max(2, digits-3), width = 1),
+                 # " < ",
+                 # formatC(x$outliers$threshold, digits = max(2, digits-3),
+                 #         width = 1),
+                 "\n", sep = "")
     indices_to_print <- NULL
   } else {
     # largest weight still below the outlier threshold
     max_outlier_weight <- max(outliers$weights[indices])
-    # information on outliers
-    msg <- paste(n_outliers, " observations are clear outliers with weight <= ",
+    # information on potential outliers
+    msg <- paste(n_outliers,
+                 " observations are potential outliers with weight <= ",
                  formatC(max_outlier_weight, digits = max(2, digits-3),
                          width = 1),
                  ":\n", sep = "")
@@ -405,6 +404,9 @@ print.summary_test_mediation <- function(x, digits = max(3, getOption("digits")-
         signif.legend = FALSE, ...)
   # print legend for significance stars
   if(isTRUE(signif.stars) && isTRUE(signif.legend)) print_legend()
+  # create plot if requested
+  p <- x$plot
+  if (!is.null(p)) print(p)
   # return object invisibly
   invisible(x)
 }

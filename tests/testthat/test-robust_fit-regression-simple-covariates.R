@@ -32,6 +32,8 @@ bar <- summary(foo)
 ellipse_default <- setup_ellipse_plot(foo)
 ellipse_partial <- setup_ellipse_plot(foo, horizontal = "M", vertical = "Y",
                                       partial = TRUE)
+weight_default <- setup_weight_plot(foo)
+weight_y <- setup_weight_plot(foo, outcome = "Y")
 
 
 ## run tests
@@ -69,6 +71,7 @@ test_that("dimensions are correct", {
   expect_length(foo$b, 1L)
   expect_length(foo$direct, 1L)
   expect_length(foo$total, 1L)
+  expect_length(foo$ab, 1L)
   # individual regressions
   expect_length(coef(foo$fit_mx), 4L)
   expect_length(coef(foo$fit_ymx), 5L)
@@ -83,14 +86,15 @@ test_that("values of coefficients are correct", {
   expect_equivalent(foo$b, coef(foo$fit_ymx)["M"])
   expect_equivalent(foo$direct, coef(foo$fit_ymx)["X"])
   expect_equivalent(foo$total, foo$a * foo$b + foo$direct)
+  expect_equivalent(foo$ab, foo$a * foo$b)
 
 })
 
 test_that("output of coef() method has correct attributes", {
 
   coefficients <- coef(foo)
-  expect_length(coefficients, 4L)
-  expect_named(coefficients, c("a", "b", "Direct", "Total"))
+  expect_length(coefficients, 5L)
+  expect_named(coefficients, c("a", "b", "Direct", "Total", "ab"))
 
 })
 
@@ -100,6 +104,7 @@ test_that("coef() method returns correct values of coefficients", {
   expect_equivalent(coef(foo, parm = "b"), foo$b)
   expect_equivalent(coef(foo, parm = "Direct"), foo$direct)
   expect_equivalent(coef(foo, parm = "Total"), foo$total)
+  expect_equivalent(coef(foo, parm = "ab"), foo$ab)
 
 })
 
@@ -161,6 +166,25 @@ test_that("object returned by setup_ellipse_plot() has correct structure", {
   # check logical for multiple methods
   expect_false(ellipse_default$have_methods)
   expect_false(ellipse_partial$have_methods)
+
+})
+
+test_that("object returned by setup_weight_plot() has correct structure", {
+
+  # check data frame for weight percentages to be plotted
+  expect_s3_class(weight_default$data, "data.frame")
+  expect_s3_class(weight_y$data, "data.frame")
+  # check dimensions
+  expect_identical(ncol(weight_default$data), 5L)
+  expect_identical(ncol(weight_y$data), 4L)
+  # check column names
+  column_names <- c("Outcome", "Tail", "Weights", "Threshold", "Percentage")
+  expect_named(weight_default$data, column_names)
+  expect_named(weight_y$data, column_names[-1])
+
+  # check if variables are passed correctly
+  expect_identical(weight_default$outcome, c("M", "Y"))
+  expect_identical(weight_y$outcome, "Y")
 
 })
 

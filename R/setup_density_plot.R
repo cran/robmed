@@ -106,7 +106,8 @@ setup_density_plot.boot_test_mediation <- function(object, ...) {
   # extract information to be plotted
   if (have_effects) {
     # information on indirect effects
-    effects <- names(ab)
+    effect_labels <- names(ab)
+    effects <- factor(effect_labels, levels = effect_labels)
     # construct data frame containing bootstrap density
     pdf_list <- lapply(seq_len(1L+p_m), function(j) {
       density(object$reps$t[, j], na.rm = TRUE)
@@ -143,7 +144,7 @@ setup_density_plot.sobel_test_mediation <- function(object, grid = NULL,
   level <- rep(as.numeric(level), length.out = 1)
   if (is.na(level) || level < 0 || level > 1) level <- formals()$level
   # extract point estimate and standard error
-  ab <- object$ab
+  ab <- object$fit$ab
   se <- object$se
   # construct data frame containing x- and y-values for the density
   if (is.null(grid)) {
