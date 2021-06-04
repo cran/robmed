@@ -31,18 +31,18 @@
 #' components:
 #' \item{density}{a data frame containing the values of the indirect effect
 #' where the density is estimated (column \code{ab}), and the estimated density
-#' values (column \code{Density}).  In case of a multiple mediator
-#' model, there is a column \code{Effect} that indicates the different
+#' values (column \code{Density}).  In case of a model with multiple indirect
+#' effects, there is a column \code{Effect} that indicates the different
 #' indirect effects.  If a list of \code{"\link{test_mediation}"} objects has
 #' been supplied, there is also a column \code{Method}, which takes the names
 #' or indices of the list elements to indicate the different methods.}
 #' \item{ci}{a data frame consisting of column \code{Estimate} containing the
 #' point estimates, column \code{Lower} for the lower confidence limit, and
-#' column \code{Upper} for the upper confidence limit.  In case of a multiple
-#' mediator model, there is a column \code{Effect} that indicates the different
-#' indirect effects.  If a list of \code{"\link{test_mediation}"} objects has
-#' been supplied, there is also a column \code{Method}, which takes the names
-#' or indices of the list elements to indicate the different methods.}
+#' column \code{Upper} for the upper confidence limit.  In case of a model with
+#' multiple indirect effects, there is a column \code{Effect} that indicates
+#' the different indirect effects.  If a list of \code{"\link{test_mediation}"}
+#' objects has been supplied, there is also a column \code{Method}, which takes
+#' the names or indices of the list elements to indicate the different methods.}
 #' \item{test}{a character string indicating whether the object contains
 #' results from a bootstrap test (\code{"boot"}) or a Sobel test
 #' (\code{"sobel"}), or a vector of such character strings if a list of
@@ -50,7 +50,7 @@
 #' \item{level}{numeric; the confidence level used for the confidence intervals
 #' of the indirect effect(s).}
 #' \item{have_effects}{a logical indicating whether the mediation model
-#' contains multiple mediators.  If \code{TRUE}, the data frames in the
+#' contains multiple indirect effects  If \code{TRUE}, the data frames in the
 #' \code{density} and \code{ci} components contain a column \code{Effect}.}
 #' \item{have_methods}{a logical indicating whether a list of
 #' \code{"\link{test_mediation}"} objects has been supplied.  If \code{TRUE},
@@ -98,8 +98,10 @@ setup_density_plot <- function(object, ...) UseMethod("setup_density_plot")
 
 setup_density_plot.boot_test_mediation <- function(object, ...) {
   # initialization
-  p_m <- length(object$fit$m)
-  have_effects <- p_m > 1L
+  nr_indirect <- length(object$fit$x) * length(object$fit$m)
+  have_effects <- nr_indirect > 1L
+  contrast <- object$fit$contrast          # only implemented for regression fit
+  have_contrast <- is.character(contrast)  # but this always works
   # extract point estimate and confidence interval
   ab <- object$ab
   ci <- object$ci
@@ -108,10 +110,21 @@ setup_density_plot.boot_test_mediation <- function(object, ...) {
     # information on indirect effects
     effect_labels <- names(ab)
     effects <- factor(effect_labels, levels = effect_labels)
-    # construct data frame containing bootstrap density
-    pdf_list <- lapply(seq_len(1L+p_m), function(j) {
-      density(object$reps$t[, j], na.rm = TRUE)
-    })
+    # compute bootstrap densities
+    indices <- seq_len(1L + nr_indirect)
+    pdf_list <- lapply(indices, function(j, x) density(x[, j], na.rm = TRUE),
+                       x = object$reps$t)
+    # add densities of contrasts (if applicable)
+    if (have_contrast) {
+      bootstrap_contrasts <- get_contrasts(object$reps$t[, indices[-1L]],
+                                           type = contrast)
+      n_contrasts <- ncol(bootstrap_contrasts)
+      bootstrap_pdf_list <- lapply(seq_len(n_contrasts),
+                                   function(j, x) density(x[, j], na.rm = TRUE),
+                                   x = bootstrap_contrasts)
+      pdf_list <- c(pdf_list, bootstrap_pdf_list)
+    }
+    # construct data frame containing bootstrap densities
     density_list <- mapply(function(pdf, effect) {
       data.frame(Effect = effect, ab = pdf$x, Density = pdf$y)
     }, pdf = pdf_list, effect = effects, SIMPLIFY = FALSE, USE.NAMES = FALSE)
@@ -199,12 +212,12 @@ setup_density_plot.list <- function(object, ...) {
   }
   # reorganize information on the density in the proper structure
   density_list <- mapply(function(object, method) {
-    data.frame(Method = method, object$density)
+    data.frame(Method = method, object$density, stringsAsFactors = TRUE)
   }, object = tmp, method = methods, SIMPLIFY = FALSE, USE.NAMES = FALSE)
   density <- do.call(rbind, density_list)
   # reorganize information on the confidence interval in the proper structure
   ci_list <- mapply(function(object, method) {
-    data.frame(Method = method, object$ci)
+    data.frame(Method = method, object$ci, stringsAsFactors = TRUE)
   }, object = tmp, method = methods, SIMPLIFY = FALSE, USE.NAMES = FALSE)
   ci <- do.call(rbind, ci_list)
   # extract information on type of test

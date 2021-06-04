@@ -29,7 +29,7 @@
 #' standard deviation computed from the bootstrap replicates).  If
 #' \code{"data"}, the confidence intervals of effects other than the indirect
 #' effect(s) are computed via statistical theory based on the original data
-#' (e.g., based on a t-distribution the coefficients are estimated via
+#' (e.g., based on a t-distribution if the coefficients are estimated via
 #' regression).  Note that this is only relevant for mediation analysis via a
 #' bootstrap test, where the confidence interval of the indirect effect is
 #' always computed via a percentile-based method due to the asymmetry of its
@@ -112,10 +112,16 @@ setup_ci_plot.boot_test_mediation <- function(object, parm = NULL,
                                               p_value = FALSE, digits = 4L,
                                               ...) {
   # initializations
+  p_x <- length(object$fit$x)
   p_m <- length(object$fit$m)
   if (is.null(parm)) {
-    if (p_m == 1L) parm <- c("Direct", "ab")
-    else parm <- c("Direct", paste("ab", names(object$ab), sep = "_"))
+    if (p_x == 1L) {
+      if (p_m == 1L) parm <- c("Direct", "ab")
+      else parm <- c("Direct", paste("ab", names(object$ab), sep = "_"))
+    } else {
+      parm <- c(paste("Direct", names(object$direct), sep = "_"),
+                paste("ab", names(object$ab), sep = "_"))
+    }
   }
   include_p_value <- isTRUE(p_value)
   # extract point estimates
@@ -234,14 +240,14 @@ setup_ci_plot.list <- function(object, ...) {
   }
   # reorganize information on the confidence interval in the proper structure
   ci_list <- mapply(function(object, method) {
-    data.frame(Method = method, object$ci)
+    data.frame(Method = method, object$ci, stringsAsFactors = TRUE)
   }, object = tmp, method = methods, SIMPLIFY = FALSE, USE.NAMES = FALSE)
   ci <- do.call(rbind, ci_list)
   # if available, reorganize information on the p-value in the proper structure
   have_p_value <- !is.null(tmp[[1]]$p_value)
   if (have_p_value) {
     p_value_list <- mapply(function(object, method) {
-      data.frame(Method = method, object$p_value)
+      data.frame(Method = method, object$p_value, stringsAsFactors = TRUE)
     }, object = tmp, method = methods, SIMPLIFY = FALSE, USE.NAMES = FALSE)
     p_value <- do.call(rbind, p_value_list)
     # return object contains confidence intervals and p-values

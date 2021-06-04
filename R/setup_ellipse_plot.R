@@ -19,11 +19,11 @@
 #' analysis, or a list of such objects.
 #' @param horizontal  a character string specifying the variable to be
 #' plotted on the horizontal axis.  If the dependent variable is chosen for
-#' the vertical axis, a hypothsized mediator or the independent variable must
+#' the vertical axis, a hypothsized mediator or an independent variable must
 #' be selected for the horizontal axis.  If a hypothesized mediator is chosen
-#' for the vertical axis, the independent variable must be selected for the
-#' horizontal axis.  The default is to plot the independent variable on the
-#' horizontal axis.
+#' for the vertical axis, an independent variable must be selected for the
+#' horizontal axis.  The default is to plot the first independent variable on
+#' the horizontal axis.
 #' @param vertical  a character string specifying the variable to be
 #' plotted on the vertical axis: the dependent variable or a hypothesized
 #' mediator.  The default is to plot the first hypothesized mediator on the
@@ -150,9 +150,12 @@ setup_ellipse_plot.reg_fit_mediation <- function(object,
   }
   # extract variable names
   x <- object$x
+  p_x <- length(x)
   y <- object$y
   m <- object$m
+  p_m <- length(m)
   covariates <- object$covariates
+  p_covariates <- length(covariates)
   # check variable on vertical axis
   if (is.null(vertical)) vertical <- m[1L]
   else {
@@ -165,26 +168,26 @@ setup_ellipse_plot.reg_fit_mediation <- function(object,
     }
   }
   # check variable on horizontal axis
-  if (is.null(horizontal)) horizontal <- x
+  if (is.null(horizontal)) horizontal <- x[1L]
   else {
     if (!(is.character(horizontal) && length(horizontal) == 1L)) {
       stop("only one variable allowed for the horizontal axis")
     }
-    if (vertical %in% m && horizontal != x) {
-      stop("variable on the horizontal axis must be the independent variable")
-    } else if (vertical == y && !(horizontal %in% m || horizontal == x)) {
+    if (vertical %in% m && !(horizontal %in% x)) {
+      stop("variable on the horizontal axis must be an independent variable")
+    } else if (vertical == y && !(horizontal %in% m || horizontal %in% x)) {
       stop("variable on the horizontal axis must be ",
-           "the dependent variable or a mediator")
+           "an independent variable or a mediator")
     }
   }
   # other initializations
   partial <- isTRUE(partial)
-  have_mx <- vertical %in% m && horizontal == x && length(covariates) == 0L
+  have_mx <- vertical %in% m && p_x == 1L && horizontal == x && p_covariates == 0L
   robust <- object$robust == "MM"
   # extract model fit
   if (partial || have_mx || robust) {
     if (vertical %in% m) {
-      fit <- if (length(m) > 1L) object$fit_mx[[vertical]] else object$fit_mx
+      fit <- if (p_m > 1L) object$fit_mx[[vertical]] else object$fit_mx
     } else fit <- object$fit_ymx
     coefficients <- coef(fit)
   }
@@ -325,7 +328,7 @@ setup_ellipse_plot.cov_fit_mediation <- function(object,
       stop("variable on the horizontal axis must be the independent variable")
     } else if (vertical == y && (horizontal != m && horizontal != x)) {
       stop("variable on the horizontal axis must be ",
-           "the dependent variable or a mediator")
+           "the independent variable or a mediator")
     }
   }
   # other initializations
@@ -455,15 +458,20 @@ setup_ellipse_plot.list <- function(object, ...) {
     if (sum_robust == 0L) {
       # add column identifying the method to data for scatter plots
       data_list <- mapply(function(ellipse, method) {
-        cbind(Method = method, ellipse$data)
+        data.frame(Method = method, ellipse$data, stringsAsFactors = TRUE)
       }, ellipse = tol_ellipse_list, method = methods,
       SIMPLIFY = FALSE, USE.NAMES = FALSE)
     } else {
       # if there is a robust method, add column with weights for nonrobust
       # methods as well
       data_list <- mapply(function(ellipse, method) {
-        if (ellipse$robust) cbind(Method = method, ellipse$data)
-        else cbind(Method = method, ellipse$data, Weight = 1)
+        if (ellipse$robust) {
+          data.frame(Method = method, ellipse$data,
+                     stringsAsFactors = TRUE)
+        } else {
+          data.frame(Method = method, ellipse$data, Weight = 1,
+                     stringsAsFactors = TRUE)
+        }
       }, ellipse = tol_ellipse_list, method = methods,
       SIMPLIFY = FALSE, USE.NAMES = FALSE)
     }
@@ -473,14 +481,16 @@ setup_ellipse_plot.list <- function(object, ...) {
   else data <- tol_ellipse_list[[1]]$data
   # combine data for ellipses
   ellipse_list <- mapply(function(ellipse, method) {
-    cbind(Method = method, ellipse$ellipse)
+    data.frame(Method = method, ellipse$ellipse, stringsAsFactors = TRUE)
   }, ellipse = tol_ellipse_list, method = methods,
   SIMPLIFY = FALSE, USE.NAMES = FALSE)
   ellipses <- do.call(rbind, ellipse_list)
   # combine data for lines representing (partial) effects
   line_list <- mapply(function(ellipse, method) {
     line <- ellipse$line
-    if (!is.null(line)) cbind(Method = method, line)
+    if (!is.null(line)) {
+      data.frame(Method = method, line, stringsAsFactors = TRUE)
+    }
   }, ellipse = tol_ellipse_list, method = methods,
   SIMPLIFY = FALSE, USE.NAMES = FALSE)
   lines <- do.call(rbind, line_list)
