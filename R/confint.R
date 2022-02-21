@@ -3,6 +3,7 @@
 #         Erasmus Universiteit Rotterdam
 # --------------------------------------
 
+
 #' Confidence intervals from (robust) mediation analysis
 #'
 #' Extract or compute confidence intervals for effects in (robust)
@@ -12,9 +13,12 @@
 #'
 #' @param object  an object inheriting from class \code{"\link{test_mediation}"}
 #' containing results from (robust) mediation analysis.
-#' @param parm  an integer, character or logical vector specifying the
-#' coefficients for which to extract or compute confidence intervals, or
-#' \code{NULL} to extract or compute confidence intervals for all coefficients.
+#' @param parm  an integer, character or logical vector specifying the paths
+#' for which to extract or compute confidence intervals, or \code{NULL}
+#' to extract or compute confidence intervals for all coefficients.  In
+#' case of a character vector, possible values are \code{"a"}, \code{"b"},
+#' \code{"d"} (only serial multiple mediator models), \code{"total"},
+#' \code{"direct"}, and \code{"indirect"}.
 #' @param level  for the \code{"boot_test_mediation"} method, this is ignored
 #' and the confidence level of the bootstrap confidence interval for the
 #' indirect effect is used.  For the other methods, the confidence level of
@@ -44,7 +48,7 @@
 #' @examples
 #' data("BSG2014")
 #'
-#' # run fast and robust bootstrap test
+#' # run fast-and-robust bootstrap test
 #' robust_boot <- test_mediation(BSG2014,
 #'                               x = "ValueDiversity",
 #'                               y = "TeamCommitment",
@@ -72,23 +76,24 @@ NULL
 ## argument 'level' is ignored
 confint.boot_test_mediation <- function(object, parm = NULL, level = NULL,
                                         type = c("boot", "data"), ...) {
-  # number of hypothesized mediators
-  nr_indirect <- length(object$fit$x) * length(object$fit$m)
-  # confidence interval of other effects
+  # confidence intervals of other effects
   type <- match.arg(type)
   if (type == "boot") {
-    ci <- get_confint(object$fit, level = object$level, boot = object$reps)
-  } else ci <- get_confint(object$fit, level = object$level)
-  # combine with confidence interval of indirect effect
-  if (nr_indirect == 1L) ci <- rbind(ci, ab = object$ci)
-  else {
-    tmp <- object$ci
-    rownames(tmp) <- paste("ab", rownames(tmp), sep = "_")
-    ci <- rbind(ci, tmp)
-  }
-  if (object$alternative != "twosided") colnames(ci) <- c("Lower", "Upper")
-  # if requested, take subset of effects
-  if (!is.null(parm)) ci <- ci[parm, , drop = FALSE]
+    ci_list <- get_ci_list(object$fit, level = object$level, boot = object$reps)
+  } else ci_list <- get_ci_list(object$fit, level = object$level)
+  # add confidence intervals for indirect effects
+  ci_list$indirect <- object$ci
+  # if requested, take subset of confidence intervals
+  if (!is.null(parm)) ci_list <- ci_list[check_parm(parm)]
+  # stack confidence intervals on top of each other
+  ci <- do.call(rbind, ci_list)
+  # define row names
+  keep <- names(ci_list)
+  rn <- get_effect_names(effects = object[keep])
+  # define column names for lower and upper bound
+  cn <- get_ci_names(object$level, alternative = object$alternative)
+  # add row and column names and return confidence intervals
+  dimnames(ci) <- list(rn, cn)
   ci
 }
 
@@ -100,16 +105,24 @@ confint.boot_test_mediation <- function(object, parm = NULL, level = NULL,
 confint.sobel_test_mediation <- function(object, parm = NULL, level = 0.95,
                                          ...) {
   # initializations
-  level <- rep(as.numeric(level), length.out = 1)
+  level <- rep(as.numeric(level), length.out = 1L)
   if(is.na(level) || level < 0 || level > 1) level <- formals()$level
-  # confidence interval of indirect effect
-  ci <- confint_z(object$fit$ab, object$se, level = level,
-                  alternative = object$alternative)
-  # combine with confidence intervalse of other effects
-  ci <- rbind(get_confint(object$fit, level = level), ab = ci)
-  if(object$alternative != "twosided") colnames(ci) <- c("Lower", "Upper")
-  # if requested, take subset of effects
-  if(!is.null(parm)) ci <- ci[parm, , drop = FALSE]
+  # confidence intervals of other effects
+  ci_list <- get_ci_list(object$fit, level = level)
+  # add confidence interval for indirect effect
+  ci_list$indirect <- confint_z(object$fit$indirect, object$se, level = level,
+                                alternative = object$alternative)
+  # if requested, take subset of confidence intervals
+  if (!is.null(parm)) ci_list <- ci_list[check_parm(parm)]
+  # stack confidence intervals on top of each other
+  ci <- do.call(rbind, ci_list)
+  # define row names
+  keep <- names(ci_list)
+  rn <- get_effect_names(effects = object$fit[keep])
+  # define column names for lower and upper bound
+  cn <- get_ci_names(level, alternative = object$alternative)
+  # add row and column names and return confidence intervals
+  dimnames(ci) <- list(rn, cn)
   ci
 }
 
@@ -132,7 +145,7 @@ confint.rq <- function(object, parm = NULL, level = 0.95, ...) {
   a <- c(a, 1 - a)
   q <- qt(a, df = summary$rdf)
   # column names for output should contain percentages
-  cn <- paste(format(100 * a, trim=TRUE), "%")
+  cn <- get_ci_names(level)
   # construct confidence interval
   ci <- array(NA_real_, dim = c(length(parm), 2L), dimnames = list(parm, cn))
   ci[] <- coef[parm] + se[parm] %o% q
@@ -141,137 +154,117 @@ confint.rq <- function(object, parm = NULL, level = 0.95, ...) {
 
 
 ## internal function to compute confidence intervals for estimated effects
+## other than the indirect effect
 
-get_confint <- function(object, parm, level = 0.95, ...) {
-  UseMethod("get_confint")
+get_ci_list <- function(object, level = 0.95, ...) UseMethod("get_ci_list")
+
+get_ci_list.reg_fit_mediation <- function(object, level = 0.95,
+                                          boot = NULL, ...) {
+  # initializations
+  have_serial <- object$model == "serial"
+  # either extract confidence intervals from regression models or compute
+  # bootstrap confidence intervals using the normal approximation
+  if (is.null(boot)) {
+    # further initializations
+    alpha <- 1 - level
+    x <- object$x
+    p_x <- length(x)
+    m <- object$m
+    p_m <- length(m)
+    have_yx <- !is.null(object$fit_yx)
+    # compute confidence intervals of effects for a path
+    if (p_m == 1L) confint_a <- confint(object$fit_mx, parm = x, level = level)
+    else {
+      confint_a <- lapply(object$fit_mx, confint, parm = x, level = level)
+      confint_a <- do.call(rbind, confint_a)
+    }
+    # compute confidence intervals of effects for b path
+    confint_b <- confint(object$fit_ymx, parm = m, level = level)
+    # compute confidence intervals of total effects
+    if (have_yx) {
+      # extract confidence intervals from regression model
+      confint_total <- confint(object$fit_yx, parm = x, level = level)
+    } else {
+      # confidence intervals not available
+      confint_total <- matrix(NA_real_, nrow = p_x, ncol = 2L)
+    }
+    # compute confidence intervals of direct effects
+    confint_direct <- confint(object$fit_ymx, parm = x, level = level)
+    # construct list of confidence intervals
+    if (have_serial) {
+      # compute confidence intervals of effects for d path
+      j_list <- lapply(seq_len(p_m-1L), function(j) 1L + seq_len(j))
+      confint_d <- mapply(confint, object$fit_mx[-1L], parm = j_list,
+                          SIMPLIFY = FALSE, USE.NAMES = FALSE)
+      confint_d <- do.call(rbind, confint_d)
+      # construct list
+      ci_list <- list(a = confint_a, b = confint_b, d = confint_d,
+                      total = confint_total, direct = confint_direct)
+    } else {
+      ci_list <- list(a = confint_a, b = confint_b, total = confint_total,
+                      direct = confint_direct)
+    }
+  } else {
+    # extract bootstrap replicates for effects other than the indirect effect
+    keep <- c("a", "b", if (have_serial) "d", "total", "direct")
+    boot_list <- extract_boot(object, boot = boot)[keep]
+    # construct list of confidence intervals for the different effects
+    ci_list <- lapply(boot_list, function(boot) {
+      # compute means and standard errors of bootstrap replicates
+      estimates <- colMeans(boot, na.rm = TRUE)
+      se <- apply(boot, 2L, sd, na.rm = TRUE)
+      # compute confidence intervals
+      tmp <- mapply(confint_z, mean = estimates, sd = se,
+                    MoreArgs = list(level = level),
+                    SIMPLIFY = FALSE, USE.NAMES = FALSE)
+      do.call(rbind, tmp)
+    })
+  }
+  # return list of confidence intervals
+  ci_list
 }
 
-get_confint.cov_fit_mediation <- function(object, parm = NULL, level = 0.95,
+get_ci_list.cov_fit_mediation <- function(object, level = 0.95,
                                           boot = NULL, ...) {
   # initializations
   alpha <- 1 - level
   # extract point estimates and standard errors
   if(is.null(boot)) {
     # combine point estimates
-    estimates <- c(object$a, object$b, object$direct, object$total)
+    estimates <- c(object$a, object$b, object$total, object$direct)
     # compute standard errors
     summary <- get_summary(object)
-    se <- c(summary$a[1, 2], summary$b[1, 2], summary$direct[1, 2],
-            summary$total[1, 2])
+    se <- c(summary$a[1, 2], summary$b[1, 2], summary$total[1, 2],
+            summary$direct[1, 2])
   } else {
     # compute means and standard errors from bootstrap replicates
-    keep <- c(3L, 5L:7L)
+    keep <- 1:4
     estimates <- colMeans(boot$t[, keep], na.rm = TRUE)
     se <- apply(boot$t[, keep], 2, sd, na.rm = TRUE)
   }
-  # compute confidence intervals and combine into one matrix
-  ci <- rbind(confint_z(estimates[1], se[1], level=level),
-              confint_z(estimates[2], se[2], level=level),
-              confint_z(estimates[3], se[3], level=level),
-              confint_z(estimates[4], se[4], level=level))
-  cn <- paste(format(100 * c(alpha/2, 1 - alpha/2), trim = TRUE), "%")
-  dimnames(ci) <- list(c("a", "b", "Direct", "Total"), cn)
-  # if requested, take subset of effects
-  if(!is.null(parm)) ci <- ci[parm, , drop = FALSE]
-  ci
-}
-
-get_confint.reg_fit_mediation <- function(object, parm = NULL, level = 0.95,
-                                          boot = NULL, ...) {
-  # initializations
-  alpha <- 1 - level
-  p_x <- length(object$x)
-  p_m <- length(object$m)
-  # extract point estimates and standard errors
-  if (is.null(boot)) {
-    # extract confidence intervals from regression models
-    if (p_m == 1L) {
-      confint_mx <- confint(object$fit_mx, parm = 1L + seq_len(p_x),
-                            level = level)
-    } else {
-      confint_mx <- lapply(object$fit_mx, confint, parm = 1L + seq_len(p_x),
-                           level = level)
-      confint_mx <- do.call(rbind, confint_mx)
-    }
-    confint_ymx <- confint(object$fit_ymx, parm = 1L + seq_len(p_x + p_m),
-                           level = level)
-    # compute confidence interval for total effect
-    if (is.null(object$fit_yx)) {
-      # confidence interval not available
-      if (p_x == 1L) confint_yx <- rep.int(NA_real_, 2L)
-      else confint_yx <- matrix(NA_real_, nrow = p_x, ncol = 2L)
-    } else {
-      # extract confidence interval from regression model
-      confint_yx <- confint(object$fit_yx, parm = 1L + seq_len(p_x),
-                            level = level)
-    }
-    # combine confidence intervals
-    ci <- rbind(confint_mx, confint_ymx, confint_yx)
-    rownames(ci) <- get_effect_names(object$x, object$m)
-  } else {
-    # get indices of columns of bootstrap replicates that that correspond to
-    # the respective models
-    p_covariates <- length(object$fit$covariates)
-    index_list <- get_index_list(p_x, p_m, p_covariates)
-    # the a path is the second coefficient in the model m ~ x + covariates
-    if (p_m == 1L) keep_mx <- index_list$fit_mx[1L + seq_len(p_x)]
-    else keep_mx <- sapply(index_list$fit_mx, "[", 1L + seq_len(p_x))
-    # keep b and c coefficients of model y ~ m + x + covariates
-    keep_ymx <- index_list$fit_ymx[1L + seq_len(p_x + p_m)]
-    # index of total effect is stored separately in this list
-    keep <- c(keep_mx, keep_ymx, index_list$total)
-    # compute means and standard errors from bootstrap replicates
-    estimates <- colMeans(boot$t[, keep], na.rm = TRUE)
-    se <- apply(boot$t[, keep], 2L, sd, na.rm = TRUE)
-    # compute confidence intervals and combine into one matrix
-    ci <- mapply(confint_z, mean = estimates, sd = se,
-                 MoreArgs = list(level = level),
-                 SIMPLIFY = FALSE, USE.NAMES = FALSE)
-    ci <- do.call(rbind, ci)
-    # add row and column names
-    cn <- paste(format(100 * c(alpha/2, 1 - alpha/2), trim = TRUE), "%")
-    dimnames(ci) <- list(get_effect_names(object$x, object$m), cn)
-  }
-  # if requested, take subset of effects
-  if(!is.null(parm)) ci <- ci[parm, , drop = FALSE]
-  ci
+  # compute confidence intervals and combine into list
+  list(a = confint_z(estimates[1], se[1], level = level),
+       b = confint_z(estimates[2], se[2], level = level),
+       total = confint_z(estimates[3], se[3], level = level),
+       direct = confint_z(estimates[4], se[4], level = level))
 }
 
 
-# extract confidence interval from bootstrap results
-# (argument 'parm' can be used for completeness; we only need the confidence
-# interval for the indirect effect in the first column of the bootstrap results)
-confint.boot <- function(object, parm = 1L, level = 0.95,
-                         alternative = c("twosided", "less", "greater"),
-                         type = c("bca", "perc"), ...) {
-  # initializations
-  alternative <- match.arg(alternative)
-  type <- match.arg(type)
-  component <- if(type == "perc") "percent" else type
-  # extract confidence interval
-  if(level == 0) {
-    ci <- rep.int(mean(object$t[, parm], na.rm=TRUE), 2L)
-  } else if(level == 1) {
-    ci <- c(-Inf, Inf)
-  } else if(alternative == "twosided") {
-    ci <- boot.ci(object, conf=level, type=type, index=parm)[[component]][4:5]
-  } else {
+## internal function to create names for confidence bounds
+get_ci_names <- function(level = 0.95, alternative = "twosided") {
+  if (alternative == "twosided") {
     alpha <- 1 - level
-    ci <- boot.ci(object, conf=1-2*alpha, type=type, index=parm)[[component]][4:5]
-    if(alternative == "less") ci[1] <- -Inf
-    else ci[2] <- Inf
-  }
-  # return confidence interval
-  ci
+    paste(format(100 * c(alpha/2, 1 - alpha/2), trim = TRUE), "%")
+  } else c("Lower", "Upper")
 }
+
 
 ## internal function to compute confidence interval based on normal distribution
 confint_z <- function(mean = 0, sd = 1, level = 0.95,
-                      alternative = c("twosided", "less", "greater")) {
+                      alternative = "twosided") {
   # initializations
-  alternative <- match.arg(alternative)
-  # compute confidence interval
   alpha <- 1 - level
+  # compute confidence interval
   switch(alternative,
          twosided = qnorm(c(alpha/2, 1-alpha/2), mean = mean, sd = sd),
          less = c(-Inf, qnorm(level, mean = mean, sd = sd)),

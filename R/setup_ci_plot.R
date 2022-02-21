@@ -17,9 +17,11 @@
 #' @param object  an object inheriting from class
 #' \code{"\link{test_mediation}"} containing results from
 #' (robust) mediation analysis, or a list of such objects.
-#' @param parm  a character string specifying the effects to be included
-#' in the plot.  The default is to include the direct and the indirect
-#' effect(s).
+#' @param parm  an integer, character or logical vector specifying which
+#' effects to include in the plot.  In case of a character vector, possible
+#' values are \code{"a"}, \code{"b"}, \code{"d"} (only serial multiple mediator
+#' models), \code{"total"}, \code{"direct"}, and \code{"indirect"}.  The
+#' default is to include the direct and the indirect effect(s).
 #' @param type  a character string specifying which point estiamates and
 #' confidence intervals to plot: those based on the bootstrap distribution
 #' (\code{"boot"}; the default), or those based on the original data
@@ -78,15 +80,14 @@
 #' @examples
 #' data("BSG2014")
 #'
-#' # run fast and robust bootstrap test
-#' robust_boot <- test_mediation(BSG2014,
-#'                               x = "ValueDiversity",
-#'                               y = "TeamCommitment",
-#'                               m = "TaskConflict",
-#'                               robust = TRUE)
+#' # run fast-and-robust bootstrap test
+#' test <- test_mediation(BSG2014,
+#'                        x = "ValueDiversity",
+#'                        y = "TeamCommitment",
+#'                        m = "TaskConflict")
 #'
 #' # set up information for plot
-#' setup <- setup_ci_plot(robust_boot, parm = "ab")
+#' setup <- setup_ci_plot(test, parm = "Indirect")
 #'
 #' # plot only density and confidence interval
 #' ggplot() +
@@ -107,22 +108,12 @@ setup_ci_plot <- function(object, ...) UseMethod("setup_ci_plot")
 #' @method setup_ci_plot boot_test_mediation
 #' @export
 
-setup_ci_plot.boot_test_mediation <- function(object, parm = NULL,
+setup_ci_plot.boot_test_mediation <- function(object,
+                                              parm = c("direct", "indirect"),
                                               type = c("boot", "data"),
                                               p_value = FALSE, digits = 4L,
                                               ...) {
   # initializations
-  p_x <- length(object$fit$x)
-  p_m <- length(object$fit$m)
-  if (is.null(parm)) {
-    if (p_x == 1L) {
-      if (p_m == 1L) parm <- c("Direct", "ab")
-      else parm <- c("Direct", paste("ab", names(object$ab), sep = "_"))
-    } else {
-      parm <- c(paste("Direct", names(object$direct), sep = "_"),
-                paste("ab", names(object$ab), sep = "_"))
-    }
-  }
   include_p_value <- isTRUE(p_value)
   # extract point estimates
   coefficients <- coef(object, parm = parm, type = type)
@@ -140,12 +131,12 @@ setup_ci_plot.boot_test_mediation <- function(object, parm = NULL,
     # labels for facets
     labels <- c("Confidence interval", "p-Value")
     labels <- factor(labels, levels = labels)
+    # add column to CI data frame for facetting
+    ci <- cbind(Label = labels[1L], ci)
     # construct data frame for p-values
     p_values <- p_value(object, parm = parm, type = type, digits = digits)
-    p_value <- data.frame(Label = labels[2], Effect = effects,
+    p_value <- data.frame(Label = labels[2L], Effect = effects,
                           Value = unname(p_values[effects]))
-    # add column to CI data frame for facetting
-    ci <- cbind(Label = labels[1], ci)
     # return object contains confidence intervals and p-values
     out <- list(ci = ci, p_value = p_value, level = object$level,
                 have_methods = FALSE)
@@ -163,12 +154,12 @@ setup_ci_plot.boot_test_mediation <- function(object, parm = NULL,
 #' @method setup_ci_plot sobel_test_mediation
 #' @export
 
-setup_ci_plot.sobel_test_mediation <- function(object, parm = NULL,
+setup_ci_plot.sobel_test_mediation <- function(object,
+                                               parm = c("direct", "indirect"),
                                                level = 0.95, p_value = FALSE,
                                                ...) {
   # initializations
-  if (is.null(parm)) parm <- c("Direct", "ab")
-  level <- rep(as.numeric(level), length.out = 1)
+  level <- rep(as.numeric(level), length.out = 1L)
   if (is.na(level) || level < 0 || level > 1) level <- formals()$level
   include_p_value <- isTRUE(p_value)
   # extract point estimates

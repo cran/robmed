@@ -13,11 +13,14 @@
 #' containing results from (robust) mediation analysis, or an object inheriting
 #' from class \code{"\link{fit_mediation}"} containing a (robust) mediation
 #' model fit.
+#' @param parm  an integer, character or logical vector specifying the
+#' paths for which to extract coefficients, or \code{NULL} to extract all
+#' coefficients.  In case of a character vector, possible values are
+#' \code{"a"}, \code{"b"}, \code{"d"} (only serial multiple mediator
+#' models), \code{"total"}, \code{"direct"}, and \code{"indirect"}.
 #' @param type  a character string specifying whether to extract the means
 #' of the bootstrap distribution (\code{"boot"}; the default), or the
 #' coefficient estimates based on the original data set (\code{"data"}).
-#' @param parm  an integer, character or logical vector specifying the
-#' coefficients to be extracted, or \code{NULL} to extract all coefficients.
 #' @param \dots  additional arguments are currently ignored.
 #'
 #' @return A numeric vector containing the requested coefficients.
@@ -37,7 +40,7 @@
 #'                      m = "TaskConflict")
 #' coef(fit)
 #'
-#' # run fast and robust bootstrap test and extract coefficients
+#' # run fast-and-robust bootstrap test and extract coefficients
 #' test <- test_mediation(fit)
 #' coef(test, type = "data")  # from original sample
 #' coef(test, type = "boot")  # means of bootstrap replicates
@@ -58,24 +61,15 @@ coef.boot_test_mediation <- function(object, parm = NULL,
                                      type = c("boot", "data"),
                                      ...) {
   # initializations
-  x <- object$fit$x
-  m <- object$fit$m
-  nr_indirect <- length(x) * length(m)
   type <- match.arg(type)
-  # extract effects (including indirect effect)
+  fit <- object$fit
+  # extract effects
   if(type == "boot") {
-    # construct vector of bootstrap estimates
-    ab <- object$ab
-    coef <- c(object$a, object$b, object$direct, object$total, ab)
-    # add coefficient names
-    if (nr_indirect == 1L) indirect_names <- "ab"
-    else indirect_names <- paste("ab", names(ab), sep = "_")
-    names(coef) <- c(get_effect_names(x, m), indirect_names)
-    # if requested, take subset of effects
-    if (!is.null(parm))  coef <- coef[parm]
-  } else coef <- coef(object$fit, parm = parm, ...)
-  # return effects
-  coef
+    # call workhorse function with list of effect estimates
+    have_d <- inherits(fit, "reg_fit_mediation") && fit$model == "serial"
+    keep <- c("a", "b", if (have_d) "d", "total", "direct", "indirect")
+    coef_mediation(object[keep], parm = parm)
+  } else coef(fit, parm = parm, ...)
 }
 
 
@@ -84,43 +78,39 @@ coef.boot_test_mediation <- function(object, parm = NULL,
 #' @export
 
 coef.fit_mediation <- function(object, parm = NULL, ...) {
-  # initializations
-  x <- object$x
-  m <- object$m
-  nr_indirect <- length(x) * length(m)
-  # extract effects
-  ab <- object$ab
-  coef <- c(object$a, object$b, object$direct, object$total, ab)
-  # add coefficient names
-  if (nr_indirect == 1L) indirect_names <- "ab"
-  else indirect_names <- paste("ab", names(ab), sep = "_")
-  names(coef) <- c(get_effect_names(x, m), indirect_names)
-  # if requested, take subset of effects
-  if (!is.null(parm))  coef <- coef[parm]
-  coef
+  # call workhorse function with list of effect estimates
+  have_d <- inherits(object, "reg_fit_mediation") && object$model == "serial"
+  keep <- c("a", "b", if (have_d) "d", "total", "direct", "indirect")
+  coef_mediation(object[keep], parm = parm)
 }
 
 
-# utility function to get names of coefficients
-get_effect_names <- function(x, m, sep = "_") {
-  # initializations
-  p_x <- length(x)
-  p_m <- length(m)
-  # construct names
-  if (p_x == 1L) {
-    if (p_m == 1L) c("a", "b", "Direct", "Total")
-    else {
-      c(paste("a", m, sep = sep), paste("b", m, sep = sep), "Direct", "Total")
+# workhorse function to extract coefficients
+coef_mediation <- function(coef_list, parm = NULL) {
+  # if requested, take subset of effects
+  if (!is.null(parm)) coef_list <- coef_list[check_parm(parm)]
+  # convert effect estimates to vector and add names
+  coef <- unlist(coef_list, use.names = FALSE)
+  names(coef) <- get_effect_names(effects = coef_list)
+  coef
+}
+
+# internal function to check argument 'parm' for backwards compatibility
+check_parm <- function(parm = NULL) {
+  # some checks if effects are selected via a character vector
+  if (is.character(parm)) {
+    # for backwards compatibility, check if 'ab' is used for the indirect effect
+    which_ab <- which(parm == "ab")
+    if (length(which_ab) > 0) {
+      parm[which_ab] <- "indirect"
+      warning("component 'ab' is deprecated, please use 'indirect' instead",
+              call. = FALSE)
     }
-  } else {
-    if (p_m == 1L) {
-      c(paste("a", x, sep = sep), "b", paste("Direct", x, sep = sep),
-        paste("Total", x, sep = sep))
-    } else {
-      c(paste("a", sapply(m, paste, x, sep = "."), sep = sep),
-        paste("b", m, sep = sep),
-        paste("Direct", x, sep = sep),
-        paste("Total", x, sep = sep))
-    }
+    # allow for capitalized names
+    parm[which(parm == "Total")] <- "total"
+    parm[which(parm == "Direct")] <- "direct"
+    parm[which(parm == "Indirect")] <- "indirect"
   }
+  # return checked object
+  parm
 }

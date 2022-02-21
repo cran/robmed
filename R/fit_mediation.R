@@ -52,7 +52,7 @@
 #' @param data  for the \code{formula} method, a data frame containing the
 #' variables.
 #' @param x  a character, integer or logical vector specifying the columns of
-#' \code{object} containing the independent variables.
+#' \code{object} containing the independent variables of interest.
 #' @param y  a character string, an integer or a logical vector specifying the
 #' column of \code{object} containing the dependent variable.
 #' @param m  a character, integer or logical vector specifying the columns of
@@ -79,6 +79,12 @@
 #' \code{"select"} to select among these four distributions via BIC (see
 #' \sQuote{Details}).  This is only relevant if \code{method = "regression"}
 #' and \code{robust = FALSE}.
+#' @param model  a character string specifying the type of model in case of
+#' multiple mediators.  Possible values are \code{"parallel"} (the default) for
+#' the parallel multiple mediator model, or \code{"serial"} for the serial
+#' multiple mediator model.  This is only relevant for models with multiple
+#' hypothesized mediators, which are currently only implemented for estimation
+#' via regressions (\code{method = "regression"}).
 #' @param contrast  a logical indicating whether to compute pairwise contrasts
 #' of the indirect effects (defaults to \code{FALSE}).  This can also be a
 #' character string, with \code{"estimates"} for computing the pairwise
@@ -86,7 +92,10 @@
 #' pairwise differences of the absolute values of the indirect effects.  This
 #' is only relevant for models with multiple indirect effects, which are
 #' currently only implemented for estimation via regressions
-#' (\code{method = "regression"}).
+#' (\code{method = "regression"}).  For models with multiple independent
+#' variables of interest and multiple hypothesized mediators, contrasts are
+#' only computed between indirect effects corresponding to the same independent
+#' variable.
 #' @param fit_yx  a logical indicating whether to fit the regression model
 #' \code{y ~ x + covariates} to estimate the total effect (the default is
 #' \code{TRUE}).  This is only relevant if \code{method = "regression"} and
@@ -112,12 +121,19 @@
 #' the independent variables on the proposed mediator variables.}
 #' \item{b}{a numeric vector containing the point estimates of the direct
 #' effects of the proposed mediator variables on the dependent variable.}
-#' \item{direct}{a numeric vector containing the point estimates of the direct
-#' effects of the independent variables on the dependent variable.}
+#' \item{d}{in case of a serial multiple mediator model, a numeric vector
+#' containing the point estimates of the effects of proposed mediator variables
+#' on other mediator variables occurring later in the sequence (only
+#' \code{"reg_fit_mediation"} if applicable).}
 #' \item{total}{a numeric vector containing the point estimates of the total
 #' effects of the independent variables on the dependent variable.}
-#' \item{ab}{a numeric vector containing the point estimates of the indirect
-#' effects.}
+#' \item{direct}{a numeric vector containing the point estimates of the direct
+#' effects of the independent variables on the dependent variable.}
+#' \item{indirect}{a numeric vector containing the point estimates of the
+#' indirect effects.}
+#' \item{ab}{for back-compatibility with versions <0.10.0, the point estimates
+#' of the indirect effects are also included here.  \bold{This component is
+#' deprecated and may be removed as soon as the next version.}}
 #' \item{fit_mx}{an object of class \code{"\link[robustbase]{lmrob}"},
 #' \code{"\link[quantreg]{rq}"}, \code{"\link[stats]{lm}"} or \code{"lmse"}
 #' containing the estimation results from the regression of the proposed
@@ -143,6 +159,12 @@
 #' \item{robust}{either a logical indicating whether the effects were estimated
 #' robustly, or one of the character strings \code{"MM"} and \code{"median"}
 #' specifying the type of robust regressions.}
+#' \item{model}{a character string specifying the type of mediation model
+#' fitted: \code{"simple"} in case of one independent variable and one
+#' hypothesized mediator, \code{"multiple"} in case of multiple independent
+#' variables and one hypothesized mediator, \code{"parallel"} in case of
+#' parallel multiple mediators, or \code{"serial"} in case of serial multiple
+#' mediators (only \code{"reg_fit_mediation"}).}
 #' \item{contrast}{either a logical indicating whether contrasts of the
 #' indirect effects were computed, or one of the character strings
 #' \code{"estimates"} and \code{"absolute"} specifying the type of contrasts
@@ -179,28 +201,20 @@
 #' @examples
 #' data("BSG2014")
 #'
+#' # set seed of the random number generator
+#' set.seed(20211117)
+#'
 #' ## The results in Alfons et al. (2021) were obtained with an
 #' ## older version of the random number generator.  To reproduce
-#' ## those results, uncomment the call to RNGversion() below.
-#'
+#' ## those results, uncomment the two lines below.
 #' # RNGversion("3.5.3")
-#' seed <- 20150601
+#' # set.seed(20150601)
 #'
-#' # formula interface
-#' set.seed(seed)
-#' fit1 <- fit_mediation(TeamCommitment ~ m(TaskConflict) + ValueDiversity,
-#'                       data = BSG2014)
-#' test1 <- test_mediation(fit1)
-#' summary(test1)
-#'
-#' # default method
-#' set.seed(seed)
-#' fit2 <- fit_mediation(BSG2014,
-#'                       x = "ValueDiversity",
-#'                       y = "TeamCommitment",
-#'                       m = "TaskConflict")
-#' test2 <- test_mediation(fit2)
-#' summary(test2)
+#' # perform mediation analysis
+#' fit <- fit_mediation(TeamCommitment ~ m(TaskConflict) + ValueDiversity,
+#'                      data = BSG2014)
+#' test <- test_mediation(fit)
+#' summary(test)
 #'
 #' @keywords multivariate
 #'
@@ -242,13 +256,15 @@ fit_mediation.formula <- function(formula, data, ...) {
   index_y <- 1
   y <- names(mf)[index_y]
   # make sure that mediators are specified
-  index_m <- which(sapply(mf, inherits, "parallel_mediators"))
+  index_m <- which(sapply(mf, inherits, "mediators"))
   if (length(index_m) == 0) {
     stop("mediators must be specified using m() in the formula")
   } else if (length(index_m) > 1) {
     stop("use m() only once in the formula to specify all mediators")
   }
   m <- colnames(mf[[index_m]])
+  if (inherits(mf[[index_m]], "serial_mediators")) model <- "serial"
+  else model <- "parallel"
   # check if covariates are specified
   index_covariates <- which(sapply(mf, inherits, "covariates"))
   if (length(index_covariates) > 1) {
@@ -275,7 +291,8 @@ fit_mediation.formula <- function(formula, data, ...) {
   # rebuild data frame
   data <- do.call(data.frame, mf)
   # call default method
-  fit_mediation(data, x = x, y = y, m = m, covariates = covariates, ...)
+  fit_mediation(data, x = x, y = y, m = m, covariates = covariates,
+                model = model, ...)
 }
 
 
@@ -286,17 +303,20 @@ fit_mediation.formula <- function(formula, data, ...) {
 fit_mediation.default <- function(object, x, y, m, covariates = NULL,
                                   method = c("regression", "covariance"),
                                   robust = TRUE, family = "gaussian",
+                                  model = c("parallel", "serial"),
                                   contrast = FALSE, fit_yx = TRUE,
                                   control = NULL, ...) {
   ## initializations
   # prepare data set
   data <- as.data.frame(object)
   # check independent variable
+  if (missing(x)) stop("no independent variable supplied")
   x <- data[, x, drop = FALSE]
   p_x <- ncol(x)
   if (p_x == 0L) stop("at least one independent variable required")
   convert_x <- !all(sapply(x, is.numeric))
   # check dependent variable
+  if (missing(y)) stop("no dependent variable supplied")
   y <- data[, y, drop = FALSE]
   p_y <- ncol(y)
   if (p_y != 1L) stop("exactly one dependent variable required")
@@ -304,6 +324,7 @@ fit_mediation.default <- function(object, x, y, m, covariates = NULL,
     stop("currently only implemented for a numeric dependent variable")
   }
   # check hypothesized mediator variables
+  if (missing(m)) stop("no hypothesized mediator variable supplied")
   m <- data[, m, drop = FALSE]
   p_m <- ncol(m)
   if (p_m == 0L) stop("at least one hypothesized mediator variable required")
@@ -354,12 +375,23 @@ fit_mediation.default <- function(object, x, y, m, covariates = NULL,
   method <- match.arg(method)
   if ((p_x > 1L || p_m > 1L || have_covariates) && method == "covariance") {
     method <- "regression"
-    warning("covariance method not available with multiple independent ",
-            "variables, multiple mediators, or covariates; using regression ",
-            "method")
+    warning("covariance method not available with multicategorical or ",
+            "multiple independent variables, multiple mediators, or ",
+            "covariates; using regression method")
   }
   # regression method requires some more checks, covariance method is simpler
   if (method == "regression") {
+    # in case of multiple mediators, check for parallel or serial model
+    if (p_m == 1L) model <- if (p_x == 1L) "simple" else "multiple"
+    else {
+      model <- match.arg(model)
+      if (model == "serial") {
+        if (p_m > 3L) {
+          stop("serial multiple mediator model not implemented for ",
+               "more than 3 hypothesized mediators")
+        }
+      }
+    }
     # check for robust method
     if (is.logical(robust)) {
       robust <- isTRUE(robust)
@@ -383,8 +415,8 @@ fit_mediation.default <- function(object, x, y, m, covariates = NULL,
     } else contrast <- match.arg(contrast, choices = c("estimates", "absolute"))
     # estimate effects
     reg_fit_mediation(data, x = x, y = y, m = m, covariates = covariates,
-                      robust = robust, family = family, contrast = contrast,
-                      fit_yx = fit_yx, control = control)
+                      model = model, robust = robust, family = family,
+                      contrast = contrast, fit_yx = fit_yx, control = control)
   } else {
     # check for robust method
     robust <- isTRUE(robust)
@@ -398,25 +430,35 @@ fit_mediation.default <- function(object, x, y, m, covariates = NULL,
 
 ## estimate the effects in a mediation model via regressions
 reg_fit_mediation <- function(data, x, y, m, covariates = character(),
-                              robust = "MM", family = "gaussian",
-                              contrast = FALSE, fit_yx = TRUE,
-                              control = reg_control()) {
-  # number of indirect effects
+                              model = "parallel", robust = "MM",
+                              family = "gaussian", contrast = FALSE,
+                              fit_yx = TRUE, control = reg_control()) {
+
+  # number of variables and indirect effects
   p_x <- length(x)
   p_m <- length(m)
-  nr_indirect <- p_x * p_m
-  # construct predictor matrices for regression models
-  n <- nrow(data)
-  predictors_mx <- as.matrix(data[, c(x, covariates), drop = FALSE])
-  predictors_ymx <- as.matrix(data[, c(m, x, covariates), drop = FALSE])
   # other initializations
   have_robust <- is.character(robust)
-  have_contrast <- is.character(contrast)
   estimate_yx <- fit_yx  # avoid name conflicts
+  # construct predictor matrices for regression models
+  n <- nrow(data)
+  if (model == "serial") {
+    predictors_mx <- vector("list", length = p_m)
+    predictors_mx[[1L]] <- as.matrix(data[, c(x, covariates), drop = FALSE])
+    for (j in seq_len(p_m-1L)) {
+      keep <- c(m[seq_len(j)], x, covariates)
+      predictors_mx[[j+1L]] <- as.matrix(data[, keep, drop = FALSE])
+    }
+  } else predictors_mx <- as.matrix(data[, c(x, covariates), drop = FALSE])
+  predictors_ymx <- as.matrix(data[, c(m, x, covariates), drop = FALSE])
+  if (estimate_yx) {
+    predictors_yx <- as.matrix(data[, c(x, covariates), drop = FALSE])
+  }
+
   # compute regression models
   if (have_robust) {
-    # for the robust methods, the total effect is estimated as c' = ab + c
-    # to satisfy this relationship
+    # for the robust methods, the total effect is estimated as
+    # total = indirect + direct to satisfy this relationship
     # (For median regression, I believe this only makes sense if the
     # conditional distribution is symmetric.  This is ok, because the robust
     # methods assume a normal distribution, which is reflected by setting
@@ -426,9 +468,17 @@ reg_fit_mediation <- function(data, x, y, m, covariates = character(),
       if (p_m == 1L) {
         fit_mx <- lmrob_fit(predictors_mx, data[, m], control = control)
       } else {
-        fit_mx <- lapply(m, function(m_j) {
-          lmrob_fit(predictors_mx, data[, m_j], control = control)
-        })
+        # obtain list of models
+        if (model == "serial") {
+          fit_mx <- mapply(function(m_j, predictors) {
+            lmrob_fit(predictors, data[, m_j], control = control)
+          }, m, predictors_mx, SIMPLIFY = FALSE, USE.NAMES = FALSE)
+        } else {
+          fit_mx <- lapply(m, function(m_j) {
+            lmrob_fit(predictors_mx, data[, m_j], control = control)
+          })
+        }
+        # add names
         names(fit_mx) <- m
       }
       fit_ymx <- lmrob_fit(predictors_ymx, data[, y], control = control)
@@ -436,9 +486,17 @@ reg_fit_mediation <- function(data, x, y, m, covariates = character(),
       # LAD-estimator for median regression
       if (p_m == 1L) fit_mx <- rq_fit(predictors_mx, data[, m], tau = 0.5)
       else {
-        fit_mx <- lapply(m, function(m_j) {
-          rq_fit(predictors_mx, data[, m_j], tau = 0.5)
-        })
+        # obtain list of models
+        if (model == "serial") {
+          fit_mx <- mapply(function(m_j, predictors) {
+            rq_fit(predictors, data[, m_j], tau = 0.5)
+          }, m, predictors_mx, SIMPLIFY = FALSE, USE.NAMES = FALSE)
+        } else {
+          fit_mx <- lapply(m, function(m_j) {
+            rq_fit(predictors_mx, data[, m_j], tau = 0.5)
+          })
+        }
+        # add names
         names(fit_mx) <- m
       }
       fit_ymx <- rq_fit(predictors_ymx, data[, y], tau = 0.5)
@@ -453,22 +511,38 @@ reg_fit_mediation <- function(data, x, y, m, covariates = character(),
     # for the total effect.  But it is up to the user whether this is done.
     if (p_m == 1L) fit_mx <- lm_fit(predictors_mx, data[, m])
     else {
-      fit_mx <- lapply(m, function(m_j) lm_fit(predictors_mx, data[, m_j]))
+      # obtain list of models
+      if (model == "serial") {
+        fit_mx <- mapply(function(m_j, predictors) {
+          lm_fit(predictors, data[, m_j])
+        }, m, predictors_mx, SIMPLIFY = FALSE, USE.NAMES = FALSE)
+      } else {
+        fit_mx <- lapply(m, function(m_j) lm_fit(predictors_mx, data[, m_j]))
+      }
+      # add names
       names(fit_mx) <- m
     }
     fit_ymx <- lm_fit(predictors_ymx, data[, y])
-    fit_yx <- if (estimate_yx) lm_fit(predictors_mx, data[, y])
+    fit_yx <- if (estimate_yx) lm_fit(predictors_yx, data[, y])
   } else if (family == "select") {
     # select among normal, skew-normal, t and skew-t errors
     if (p_m == 1L) fit_mx <- lmselect_fit(predictors_mx, data[, m])
     else {
-      fit_mx <- lapply(m, function(m_j) {
-        lmselect_fit(predictors_mx, data[, m_j])
-      })
+      # obtain list of models
+      if (model == "serial") {
+        fit_mx <- mapply(function(m_j, predictors) {
+          lmselect_fit(predictors, data[, m_j])
+        }, m, predictors_mx, SIMPLIFY = FALSE, USE.NAMES = FALSE)
+      } else {
+        fit_mx <- lapply(m, function(m_j) {
+          lmselect_fit(predictors_mx, data[, m_j])
+        })
+      }
+      # add names
       names(fit_mx) <- m
     }
     fit_ymx <- lmselect_fit(predictors_ymx, data[, y])
-    fit_yx <- if (estimate_yx) lmselect_fit(predictors_mx, data[, y])
+    fit_yx <- if (estimate_yx) lmselect_fit(predictors_yx, data[, y])
   } else {
     # obtain parameters as required for package 'sn'
     selm_args <- get_selm_args(family)
@@ -477,93 +551,49 @@ reg_fit_mediation <- function(data, x, y, m, covariates = character(),
       fit_mx <- selm_fit(predictors_mx, data[, m], family = selm_args$family,
                          fixed.param = selm_args$fixed.param)
     } else {
-      fit_mx <- lapply(m, function(m_j) {
-        selm_fit(predictors_mx, data[, m_j], family = selm_args$family,
-                 fixed.param = selm_args$fixed.param)
-      })
+      # obtain list of models
+      if (model == "serial") {
+        fit_mx <- mapply(function(m_j, predictors) {
+          selm_fit(predictors, data[, m_j], family = selm_args$family,
+                   fixed.param = selm_args$fixed.param)
+        }, m, predictors_mx, SIMPLIFY = FALSE, USE.NAMES = FALSE)
+      } else {
+        fit_mx <- lapply(m, function(m_j) {
+          selm_fit(predictors_mx, data[, m_j], family = selm_args$family,
+                   fixed.param = selm_args$fixed.param)
+        })
+      }
+      # add names
       names(fit_mx) <- m
     }
-    # The relationship ab + direct = total doesn't hold, so we need to
-    # perform the regression for the total effect.  But it is up to the
-    # user whether this is done, which can save computation time if the
-    # user is not interested in the total effect.
+    # The relationship indirect + direct = total doesn't hold, so we need to
+    # perform the regression for the total effect.  But it is up to the user
+    # whether this is done, which can save computation time if the user is not
+    # interested in the total effect.
     fit_ymx <- selm_fit(predictors_ymx, data[, y], family = selm_args$family,
                         fixed.param = selm_args$fixed.param)
     fit_yx <- if (estimate_yx) {
-      selm_fit(predictors_mx, data[, y], family = selm_args$family,
+      selm_fit(predictors_yx, data[, y], family = selm_args$family,
                fixed.param = selm_args$fixed.param)
     }
   }
-  # extract effects a and b and compute indirect effect(s)
-  if (p_m == 1L) {
-    # extract effects a and b
-    if (p_x == 1L) a <- unname(coef(fit_mx)[2L])
-    else a <- coef(fit_mx)[1L + seq_len(p_x)]
-    b <- unname(coef(fit_ymx)[2L])
-    # compute indirect effect(s)
-    ab <- a * b
-  } else {
-    # extract effects a and b
-    if (p_x == 1L) {
-      a <- sapply(fit_mx, function(fit) unname(coef(fit)[2L]))
-    } else {
-      a <- lapply(fit_mx, function(fit) coef(fit)[1L + seq_len(p_x)])
-    }
-    b <- coef(fit_ymx)[1L + seq_len(p_m)]
-    # compute indirect effect(s)
-    ab_list <- mapply(function(current_a, current_b) current_a * current_b,
-                      current_a = a, current_b = b, SIMPLIFY = FALSE)
-    # make sure we have vectors
-    if (p_x > 1L) a <- unlist(a, use.names = TRUE)
-    ab <- unlist(ab_list, use.names = TRUE)
-  }
-  # if applicable, compute total indirect effect and contrasts
-  if (nr_indirect > 1L) {
-    # if requested, compute contrasts
-    if (have_contrast) {
-      contrasts <- get_contrasts(ab, type = contrast)
-      n_contrasts <- length(contrasts)
-      names(contrasts) <- get_contrast_names(n_contrasts)
-    } else contrasts <- NULL
-    # compute total indirect effect
-    ab_total <- sum(ab)
-  }
-  # extract direct effect(s)
-  if (p_x == 1L) direct <- unname(coef(fit_ymx)[2L + p_m])
-  else direct <- coef(fit_ymx)[1L + p_m + seq_len(p_x)]
-  # extract total effect(s)
-  if (have_robust || (family == "gaussian" && !estimate_yx)) {
-    if (p_x == 1L) {
-      total <- if (p_m == 1L) ab + direct else ab_total + direct
-    } else {
-      if (p_m == 1) total <- ab + direct
-      else {
-        total <- sapply(x, function(current_x) {
-          current_ab <- sapply(ab_list, "[", current_x)
-          sum(current_ab) + unname(direct[current_x])
-        })
-      }
-    }
-  } else if (estimate_yx) {
-    if (p_x == 1) total <- unname(coef(fit_yx)[2L])
-    else total <- coef(fit_yx)[1L + seq_len(p_x)]
-  } else {
-    if (p_x == 1) total <- NA_real_
-    else {
-      total <- rep.int(NA_real_, p_x)
-      names(total) <- x
-    }
-  }
-  # combine total indirect effect, individual indirect effects, and contrasts
-  if (nr_indirect > 1L) ab <- c(Total = ab_total, ab, contrasts)
+
+  # extract estimates of the different effects
+  estimate_list <- extract_effects(x, m, family = family, model = model,
+                                   contrast = contrast, fit_mx = fit_mx,
+                                   fit_ymx = fit_ymx, fit_yx = fit_yx)
+
   # return results
-  result <- list(a = a, b = b, direct = direct, total = total, ab = ab,
+  result <- list(ab = estimate_list$indirect,  # for back-compatibility, will be removed
                  fit_mx = fit_mx, fit_ymx = fit_ymx, fit_yx = fit_yx,
                  x = x, y = y, m = m, covariates = covariates, data = data,
-                 robust = robust, family = family, contrast = contrast)
+                 robust = robust, family = family, model = model,
+                 contrast = contrast)
+  result <- c(estimate_list, result)
   if (robust == "MM") result$control <- control
   class(result) <- c("reg_fit_mediation", "fit_mediation")
   result
+
 }
 
 
@@ -574,94 +604,20 @@ cov_fit_mediation <- function(data, x, y, m, robust = TRUE,
   cov <- if (robust) cov_Huber(data, control = control) else cov_ML(data)
   S <- cov$cov
   # compute coefficients of mediation model
-  a <- S[m, x] / S[x, x]
   det <- S[x, x] * S[m, m] - S[m, x]^2
+  a <- S[m, x] / S[x, x]
   b <- (-S[m, x] * S[y, x] + S[x, x] * S[y, m]) / det
-  direct <- (S[m, m] * S[y, x] - S[m, x] * S[y, m]) / det
   total <- S[y, x] / S[x, x]
+  direct <- (S[m, m] * S[y, x] - S[m, x] * S[y, m]) / det
+  indirect <- a * b
   # return results
-  result <- list(a = a, b = b, direct = direct, total = total, ab = a * b,
-                 cov = cov, x = x, y = y, m = m, covariates = character(),
-                 data = data, robust = robust)
+  result <- list(a = a, b = b, total = total, direct = direct,
+                 indirect = indirect,
+                 ab = indirect,  # for back-compatibility, will be removed
+                 cov = cov, x = x, y = y, m = m,
+                 covariates = character(), data = data,
+                 robust = robust)
   if(robust) result$control <- control
   class(result) <- c("cov_fit_mediation", "fit_mediation")
   result
-}
-
-
-## model fitting functions that make summary() work
-# This will allow fit_mediation() to fit the regression models without a
-# formula, which is necessary to make the formula interface work.  Otherwise
-# formulas that contain log(.) or similar terms would cause errors when fitting
-# the models in fit_mediation().
-
-# OLS regression
-lm_fit <- function(x, y, intercept = TRUE) {
-  # if requested, add constant for intercept
-  if (intercept) {
-    n <- nrow(x)
-    x <- cbind("(Intercept)" = rep.int(1, n), x)
-  }
-  # fit the linear model
-  fit <- lm.fit(x, y)
-  # Add a dummy formula as a 'terms' component to make summary() method work.
-  # This 'terms' component needs to have an attribute that specifies whether
-  # the model has an intercept, that's all.  It's not used in any other way.
-  f <- as.formula(NULL)
-  attr(f, "intercept") <- as.integer(intercept)
-  fit$terms <- f
-  # add the class and return the model fit
-  class(fit) <- "lm"
-  fit
-}
-
-# MM regression
-lmrob_fit <- function(x, y, intercept = TRUE, control = reg_control()) {
-  # if requested, add constant for intercept
-  if (intercept) {
-    n <- nrow(x)
-    x <- cbind("(Intercept)" = rep.int(1, n), x)
-  }
-  # fit the linear model
-  fit <- lmrob.fit(x, y, control = control)
-  # Add a dummy formula as a 'terms' component to make summary() method work.
-  # This 'terms' component needs to have an attribute that specifies whether
-  # the model has an intercept, that's all.  It's not used in any other way.
-  f <- as.formula(NULL)
-  attr(f, "intercept") <- as.integer(intercept)
-  fit$terms <- f
-  # class is already added in lmrob.fit(), so just return the model fit
-  fit
-}
-
-# quantile (median) regression
-rq_fit <- function(x, y, intercept = TRUE, tau = 0.5) {
-  # summary() method requires data frame and formula to extract response and
-  # predictor matrix
-  data <- data.frame(y, x, check.names = FALSE)
-  formula <- if (intercept) y ~ . else y ~ 0 + .
-  # if requested, add constant for intercept
-  if (intercept) {
-    n <- nrow(x)
-    x <- cbind("(Intercept)" = rep.int(1, n), x)
-  }
-  # fit the linear model
-  fit <- rq.fit(x, y, tau = tau, method = "br")
-  fit$method <- "br"
-  # construct terms object from formula that specifies whether there is a
-  # response and an intercept
-  terms <- formula
-  attr(terms, "response") <- 1L
-  attr(terms, "intercept") <- as.integer(intercept)
-  # summary() method requires that the terms object is also an attribute of the
-  # data frame
-  attr(data, "terms") <- terms
-  # add information to model fit
-  fit$formula <- formula
-  fit$terms <- terms
-  fit$model <- data
-  fit$tau <- tau
-  # add the class and return the model fit
-  class(fit) <- "rq"
-  fit
 }

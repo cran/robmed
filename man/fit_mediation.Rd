@@ -22,6 +22,7 @@ fit_mediation(object, ...)
   method = c("regression", "covariance"),
   robust = TRUE,
   family = "gaussian",
+  model = c("parallel", "serial"),
   contrast = FALSE,
   fit_yx = TRUE,
   control = NULL,
@@ -47,7 +48,7 @@ examples), and any optional control variables should be wrapped in a call to
 variables.}
 
 \item{x}{a character, integer or logical vector specifying the columns of
-\code{object} containing the independent variables.}
+\code{object} containing the independent variables of interest.}
 
 \item{y}{a character string, an integer or a logical vector specifying the
 column of \code{object} containing the dependent variable.}
@@ -81,6 +82,13 @@ Student's t distribution, \code{"skewt"} for a skew-t distribution, or
 \sQuote{Details}).  This is only relevant if \code{method = "regression"}
 and \code{robust = FALSE}.}
 
+\item{model}{a character string specifying the type of model in case of
+multiple mediators.  Possible values are \code{"parallel"} (the default) for
+the parallel multiple mediator model, or \code{"serial"} for the serial
+multiple mediator model.  This is only relevant for models with multiple
+hypothesized mediators, which are currently only implemented for estimation
+via regressions (\code{method = "regression"}).}
+
 \item{contrast}{a logical indicating whether to compute pairwise contrasts
 of the indirect effects (defaults to \code{FALSE}).  This can also be a
 character string, with \code{"estimates"} for computing the pairwise
@@ -88,7 +96,10 @@ differences of the indirect effects, and \code{"absolute"} for computing the
 pairwise differences of the absolute values of the indirect effects.  This
 is only relevant for models with multiple indirect effects, which are
 currently only implemented for estimation via regressions
-(\code{method = "regression"}).}
+(\code{method = "regression"}).  For models with multiple independent
+variables of interest and multiple hypothesized mediators, contrasts are
+only computed between indirect effects corresponding to the same independent
+variable.}
 
 \item{fit_yx}{a logical indicating whether to fit the regression model
 \code{y ~ x + covariates} to estimate the total effect (the default is
@@ -114,12 +125,19 @@ the following components:
 the independent variables on the proposed mediator variables.}
 \item{b}{a numeric vector containing the point estimates of the direct
 effects of the proposed mediator variables on the dependent variable.}
-\item{direct}{a numeric vector containing the point estimates of the direct
-effects of the independent variables on the dependent variable.}
+\item{d}{in case of a serial multiple mediator model, a numeric vector
+containing the point estimates of the effects of proposed mediator variables
+on other mediator variables occurring later in the sequence (only
+\code{"reg_fit_mediation"} if applicable).}
 \item{total}{a numeric vector containing the point estimates of the total
 effects of the independent variables on the dependent variable.}
-\item{ab}{a numeric vector containing the point estimates of the indirect
-effects.}
+\item{direct}{a numeric vector containing the point estimates of the direct
+effects of the independent variables on the dependent variable.}
+\item{indirect}{a numeric vector containing the point estimates of the
+indirect effects.}
+\item{ab}{for back-compatibility with versions <0.10.0, the point estimates
+of the indirect effects are also included here.  \bold{This component is
+deprecated and may be removed as soon as the next version.}}
 \item{fit_mx}{an object of class \code{"\link[robustbase]{lmrob}"},
 \code{"\link[quantreg]{rq}"}, \code{"\link[stats]{lm}"} or \code{"lmse"}
 containing the estimation results from the regression of the proposed
@@ -145,6 +163,12 @@ proposed mediator variables, as well as covariates.}
 \item{robust}{either a logical indicating whether the effects were estimated
 robustly, or one of the character strings \code{"MM"} and \code{"median"}
 specifying the type of robust regressions.}
+\item{model}{a character string specifying the type of mediation model
+fitted: \code{"simple"} in case of one independent variable and one
+hypothesized mediator, \code{"multiple"} in case of multiple independent
+variables and one hypothesized mediator, \code{"parallel"} in case of
+parallel multiple mediators, or \code{"serial"} in case of serial multiple
+mediators (only \code{"reg_fit_mediation"}).}
 \item{contrast}{either a logical indicating whether contrasts of the
 indirect effects were computed, or one of the character strings
 \code{"estimates"} and \code{"absolute"} specifying the type of contrasts
@@ -193,28 +217,20 @@ versions.
 \examples{
 data("BSG2014")
 
+# set seed of the random number generator
+set.seed(20211117)
+
 ## The results in Alfons et al. (2021) were obtained with an
 ## older version of the random number generator.  To reproduce
-## those results, uncomment the call to RNGversion() below.
-
+## those results, uncomment the two lines below.
 # RNGversion("3.5.3")
-seed <- 20150601
+# set.seed(20150601)
 
-# formula interface
-set.seed(seed)
-fit1 <- fit_mediation(TeamCommitment ~ m(TaskConflict) + ValueDiversity,
-                      data = BSG2014)
-test1 <- test_mediation(fit1)
-summary(test1)
-
-# default method
-set.seed(seed)
-fit2 <- fit_mediation(BSG2014,
-                      x = "ValueDiversity",
-                      y = "TeamCommitment",
-                      m = "TaskConflict")
-test2 <- test_mediation(fit2)
-summary(test2)
+# perform mediation analysis
+fit <- fit_mediation(TeamCommitment ~ m(TaskConflict) + ValueDiversity,
+                     data = BSG2014)
+test <- test_mediation(fit)
+summary(test)
 
 }
 \references{

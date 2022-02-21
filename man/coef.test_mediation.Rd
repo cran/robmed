@@ -19,7 +19,10 @@ from class \code{"\link{fit_mediation}"} containing a (robust) mediation
 model fit.}
 
 \item{parm}{an integer, character or logical vector specifying the
-coefficients to be extracted, or \code{NULL} to extract all coefficients.}
+paths for which to extract coefficients, or \code{NULL} to extract all
+coefficients.  In case of a character vector, possible values are
+\code{"a"}, \code{"b"}, \code{"d"} (only serial multiple mediator
+models), \code{"total"}, \code{"direct"}, and \code{"indirect"}.}
 
 \item{\dots}{additional arguments are currently ignored.}
 
@@ -43,7 +46,7 @@ fit <- fit_mediation(BSG2014,
                      m = "TaskConflict")
 coef(fit)
 
-# run fast and robust bootstrap test and extract coefficients
+# run fast-and-robust bootstrap test and extract coefficients
 test <- test_mediation(fit)
 coef(test, type = "data")  # from original sample
 coef(test, type = "boot")  # means of bootstrap replicates
