@@ -190,12 +190,15 @@
 #' \code{"\link{fit_mediation}"} containing the estimation results of the
 #' mediation model on the original data.}
 #'
+#' @inheritSection fit_mediation Mediation models
+#'
 #' @note For the fast-and-robust bootstrap, the simpler correction of
 #' Salibian-Barrera & Van Aelst (2008) is used rather than the originally
 #' proposed correction of Salibian-Barrera & Zamar (2002).
 #'
-#' The formula interface is still experimental and may change in future
-#' versions.
+#' The default method takes a data frame its first argument so that it can
+#' easily be used with the pipe operator (\R's built-in \code{|>} or
+#' \pkg{magrittr}'s \code{\%>\%}).
 #'
 #' @author Andreas Alfons
 #'
@@ -247,19 +250,49 @@
 #' @examples
 #' data("BSG2014")
 #'
-#' # set seed of the random number generator
-#' set.seed(20211117)
+#' ## seed to be used for the random number generator
+#' seed <- 20211117
 #'
-#' ## The results in Alfons et al. (2021) were obtained with an
-#' ## older version of the random number generator.  To reproduce
-#' ## those results, uncomment the two lines below.
+#' ## simple mediation
+#' # set seed of the random number generator
+#' set.seed(seed)
+#' # The results in Alfons et al. (2021) were obtained with an
+#' # older version of the random number generator.  To reproduce
+#' # those results, uncomment the two lines below.
 #' # RNGversion("3.5.3")
 #' # set.seed(20150601)
-#'
 #' # perform mediation analysis
-#' test <- test_mediation(TeamCommitment ~ m(TaskConflict) + ValueDiversity,
-#'                        data = BSG2014)
-#' summary(test)
+#' boot_simple <- test_mediation(TeamCommitment ~
+#'                                 m(TaskConflict) +
+#'                                   ValueDiversity,
+#'                               data = BSG2014)
+#' summary(boot_simple)
+#'
+#' \donttest{
+#' ## serial multiple mediators
+#' # set seed of the random number generator
+#' set.seed(seed)
+#' # perform mediation analysis
+#' boot_serial <- test_mediation(TeamScore ~
+#'                                 serial_m(TaskConflict,
+#'                                          TeamCommitment) +
+#'                                 ValueDiversity,
+#'                               data = BSG2014)
+#' summary(boot_serial)
+#'
+#' ## parallel multiple mediators and control variables
+#' # set seed of the random number generator
+#' set.seed(seed)
+#' # perform mediation analysis
+#' boot_parallel <- test_mediation(TeamPerformance ~
+#'                                   parallel_m(ProceduralJustice,
+#'                                              InteractionalJustice) +
+#'                                   SharedLeadership +
+#'                                   covariates(AgeDiversity,
+#'                                              GenderDiversity),
+#'                                 data = BSG2014)
+#' summary(boot_parallel)
+#' }
 #'
 #' @keywords multivariate
 #'

@@ -38,10 +38,12 @@ summary.reg_fit_mediation <- function(object, ...) object
 #' for mediation analysis via a bootstrap test, where significance of the
 #' indirect effect is always assessed via a percentile-based confidence
 #' interval due to the asymmetry of its distribution.
-#' @param plot  a logical indicating whether to produce a diagnostic plot of
+#' @param plot  a logical indicating whether to include a diagnostic plot of
 #' robust regression weights (see \code{\link{weight_plot}()}).  This is only
 #' used for mediation analysis objects fitted with the robust MM-estimator (see
-#' \code{\link{test_mediation}()}).
+#' \code{\link{test_mediation}()}).  Note that the diagnostic plot is only
+#' shown when the returned object is printed in order to maintain a clear
+#' separation between computing results and printing/plotting them.
 #' @param \dots  additional arguments are currently ignored.
 #'
 #' @return An object of class \code{"summary_test_mediation"} with the
@@ -50,6 +52,8 @@ summary.reg_fit_mediation <- function(object, ...) object
 #' contains the results from testing the indirect effect(s).}
 #' \item{summary}{an object containing all necessary information to summarize
 #' the effects other than the indirect effect(s).}
+#' \item{plot}{if applicable, an object inheriting from class
+#' \code{"\link[ggplot2]{ggplot}"} containing the diagnostic plot.}
 #'
 #' @author Andreas Alfons
 #'
@@ -58,24 +62,58 @@ summary.reg_fit_mediation <- function(object, ...) object
 #' for mediation analysis.  \emph{Organizational Research Methods},
 #' doi: 10.1177/1094428121999096.
 #'
-#' @seealso \code{\link{test_mediation}}
+#' @seealso \code{\link{test_mediation}()}, \code{\link{weight_plot}()}
 #'
 #' @examples
 #' data("BSG2014")
 #'
-#' # set seed of the random number generator
-#' set.seed(20211117)
+#' ## seed to be used for the random number generator
+#' seed <- 20211117
 #'
-#' ## The results in Alfons et al. (2021) were obtained with an
-#' ## older version of the random number generator.  To reproduce
-#' ## those results, uncomment the two lines below.
+#' ## simple mediation
+#' # set seed of the random number generator
+#' set.seed(seed)
+#' # The results in Alfons et al. (2021) were obtained with an
+#' # older version of the random number generator.  To reproduce
+#' # those results, uncomment the two lines below.
 #' # RNGversion("3.5.3")
 #' # set.seed(20150601)
-#'
 #' # perform mediation analysis
-#' test <- test_mediation(TeamCommitment ~ m(TaskConflict) + ValueDiversity,
-#'                        data = BSG2014)
-#' summary(test)
+#' boot_simple <- test_mediation(TeamCommitment ~
+#'                                 m(TaskConflict) +
+#'                                   ValueDiversity,
+#'                               data = BSG2014)
+#' summary(boot_simple)
+#' # the diagnostic plot is not shown when the summary is
+#' # computed, only when the resulting object is printed
+#' summary_simple <- summary(boot_simple)  # does not show plot
+#' summary_simple                          # shows output and plot
+#'
+#' \donttest{
+#' ## serial multiple mediators
+#' # set seed of the random number generator
+#' set.seed(seed)
+#' # perform mediation analysis
+#' boot_serial <- test_mediation(TeamScore ~
+#'                                 serial_m(TaskConflict,
+#'                                          TeamCommitment) +
+#'                                 ValueDiversity,
+#'                               data = BSG2014)
+#' summary(boot_serial)
+#'
+#' ## parallel multiple mediators and control variables
+#' # set seed of the random number generator
+#' set.seed(seed)
+#' # perform mediation analysis
+#' boot_parallel <- test_mediation(TeamPerformance ~
+#'                                   parallel_m(ProceduralJustice,
+#'                                              InteractionalJustice) +
+#'                                   SharedLeadership +
+#'                                   covariates(AgeDiversity,
+#'                                              GenderDiversity),
+#'                                 data = BSG2014)
+#' summary(boot_parallel)
+#' }
 #'
 #' @keywords utilities
 
@@ -92,7 +130,7 @@ summary.boot_test_mediation <- function(object, type = c("boot", "data"),
   # component 'boot' only exists for bootstrap test, otherwise NULL
   type <- match.arg(type)
   fit <- object$fit
-  if(type == "boot") summary <- get_summary(fit, boot = object$reps)
+  if (type == "boot") summary <- get_summary(fit, boot = object$reps)
   else summary <- get_summary(fit)
   # construct return object
   result <- list(object = object, summary = summary)
@@ -316,7 +354,7 @@ get_summary.reg_fit_mediation <- function(object, boot = NULL, ...) {
   # return results
   result <- list(fit_mx = summary_mx, fit_ymx = summary_ymx, total = total,
                  direct = direct, x = x, y = y, m = m, covariates = covariates,
-                 n = n, robust = robust, model = model)
+                 n = n, robust = robust, family = family, model = model)
   class(result) <- c("summary_reg_fit_mediation", "summary_fit_mediation")
   result
 }
