@@ -21,7 +21,7 @@
 #' the bootstrap test.
 #' @param type  a character string specifying the type of confidence interval
 #' to be computed in the bootstrap test.  Possible values are \code{"bca"} for
-#' the bias-corrected and accelerated bootstrap, or \code{"perc"} for the
+#' the bias-corrected and accelerated (BCa) bootstrap, or \code{"perc"} for the
 #' percentile bootstrap.
 #' @param contrast  a logical indicating whether to compute pairwise contrasts
 #' of the indirect effects.  This can also be a character string, with
@@ -79,6 +79,7 @@ retest.boot_test_mediation <- function(object, alternative, level,
   defaults <- list(alternative = c("twosided", "less", "greater"),
                    type = c("bca", "perc"),
                    contrast = c("estimates", "absolute"))
+  fit <- object$fit
   # check alternative hypothesis
   if (missing(alternative)) alternative <- object$alternative
   else alternative <- match.arg(alternative, choices = defaults$alternative)
@@ -86,13 +87,25 @@ retest.boot_test_mediation <- function(object, alternative, level,
   if (missing(level)) level <- object$level
   else {
     level <- rep(as.numeric(level), length.out = 1L)
-    if(is.na(level) || level < 0 || level > 1) level <- object$level
+    if(is.na(level) || level < 0 || level > 1) {
+      level <- object$level
+      warning("confidence level must be between 0 and 1; not updating it")
+    }
   }
   # check type of confidence intervals
   if (missing(type)) type <- object$type
-  else type <- match.arg(type, choices = defaults$type)
+  else {
+    # check for a valid value
+    type <- match.arg(type, choices = defaults$type)
+    # check type if BCa confidence intervals can be computed
+    if (type == "bca" && object$R < nrow(fit$data)) {
+      type <- "perc"
+      warning("cannot compute BCa confidence intervals as number of ",
+              "bootstrap samples is smaller than number of observations; ",
+              "using percentile confidence intervals")
+    }
+  }
   # check contrasts of indirect effect
-  fit <- object$fit
   if (inherits(fit, "reg_fit_mediation")) {
     # further initializations
     model <- fit$model

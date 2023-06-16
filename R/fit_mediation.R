@@ -177,7 +177,7 @@
 #'
 #' \itemize{
 #'
-#'   \item{\emph{Simple mediation model}: The mediatiom model in its simplest
+#'   \item{\emph{Simple mediation model}: The mediation model in its simplest
 #'   form is given by the equations
 #'   \deqn{M = i_1 + aX + e_1,}
 #'   \deqn{Y = i_2 + bM + cX + e_2,}
@@ -245,7 +245,7 @@
 #'
 #'   \item{\emph{More complex models}: Some of the models described above can
 #'   be combined, for instance parallel and serial multiple mediator models
-#'   support multiple independent variables of interest.}
+#'   support multiple independent variables of interest and control variables.}
 #'
 #' }
 #'
@@ -257,11 +257,11 @@
 #' @author Andreas Alfons
 #'
 #' @references
-#' Alfons, A., Ates, N.Y. and Groenen, P.J.F. (2022) A Robust Bootstrap Test
+#' Alfons, A., Ates, N.Y. and Groenen, P.J.F. (2022a) A Robust Bootstrap Test
 #' for Mediation Analysis.  \emph{Organizational Research Methods},
 #' \bold{25}(3), 591--617.  doi:10.1177/1094428121999096.
 #'
-#' Alfons, A., Ates, N.Y. and Groenen, P.J.F. (2022) Robust Mediation Analysis:
+#' Alfons, A., Ates, N.Y. and Groenen, P.J.F. (2022b) Robust Mediation Analysis:
 #' The \R Package \pkg{robmed}.  \emph{Journal of Statistical Software},
 #' \bold{103}(13), 1--45.  doi:10.18637/jss.v103.i13.
 #'
@@ -292,7 +292,7 @@
 #' ## simple mediation
 #' # set seed of the random number generator
 #' set.seed(seed)
-#' # The results in Alfons et al. (2021) were obtained with an
+#' # The results in Alfons et al. (2022a) were obtained with an
 #' # older version of the random number generator.  To reproduce
 #' # those results, uncomment the two lines below.
 #' # RNGversion("3.5.3")

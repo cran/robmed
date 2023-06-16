@@ -134,7 +134,7 @@ below, the \eqn{i_j} are intercepts and the \eqn{e_j} are random error terms.
 
 \itemize{
 
-  \item{\emph{Simple mediation model}: The mediatiom model in its simplest
+  \item{\emph{Simple mediation model}: The mediation model in its simplest
   form is given by the equations
   \deqn{M = i_1 + aX + e_1,}
   \deqn{Y = i_2 + bM + cX + e_2,}
@@ -202,7 +202,7 @@ below, the \eqn{i_j} are intercepts and the \eqn{e_j} are random error terms.
 
   \item{\emph{More complex models}: Some of the models described above can
   be combined, for instance parallel and serial multiple mediator models
-  support multiple independent variables of interest.}
+  support multiple independent variables of interest and control variables.}
 
 }
 }
