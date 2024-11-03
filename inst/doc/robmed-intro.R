@@ -30,7 +30,7 @@ summary(BSG2014[, keep])
 #    SharedLeadership + covariates(AgeDiversity, GenderDiversity)
 
 ## ------------------------------------------------------------------------
-seed <- 20211117
+seed <- 20150601
 
 ## ------------------------------------------------------------------------
 f_simple <- TeamCommitment ~ m(TaskConflict) + ValueDiversity
@@ -43,7 +43,7 @@ set.seed(seed)
 ols_boot_simple <- test_mediation(f_simple, data = BSG2014,
                                   robust = FALSE)
 
-## ----summary, fig.width=5, fig.height=4.5, out.width="0.7\\textwidth", fig.cap="Diagnostic plot of the regression weights from the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="b!"----
+## ----summary, fig.width=5, fig.height=4.5, out.width="0.67\\textwidth", fig.cap="Diagnostic plot of the regression weights from the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="b!"----
 summary(robust_boot_simple)
 
 ## ----eval=FALSE----------------------------------------------------------
@@ -80,11 +80,11 @@ density_plot(boot_list)
 ## ----ci, fig.width=6, fig.height=4, out.width="0.85\\textwidth", fig.cap="Point estimates and 95\\% confidence intervals for selected effects in the mediation model, estimated via the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="t!"----
 ci_plot(boot_list, parm = c("a", "b", "Direct", "Indirect"))
 
-## ----ellipse, fig.width=5, fig.height=3.5, out.width="0.7\\textwidth", fig.cap="Diagnostic plot with tolerance ellipses for the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="b!"----
+## ----ellipse, fig.width=5, fig.height=3.5, out.width="0.68\\textwidth", fig.cap="Diagnostic plot with tolerance ellipses for the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="b!"----
 ellipse_plot(boot_list, horizontal = "ValueDiversity",
              vertical = "TaskConflict")
 
-## ----ellipse-custom, fig.width=5, fig.height=3.5, out.width="0.7\\textwidth", fig.cap="Customized diagnostic plot with tolerance ellipses but without regression lines for the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}."----
+## ----ellipse-custom, fig.width=5, fig.height=3.5, out.width="0.68\\textwidth", fig.cap="Customized diagnostic plot with tolerance ellipses but without regression lines for the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}."----
 setup <- setup_ellipse_plot(boot_list, horizontal = "ValueDiversity",
                             vertical = "TaskConflict")
 ggplot() +
@@ -101,10 +101,10 @@ f_serial <- TeamScore ~ serial_m(TaskConflict, TeamCommitment) +
 ## ----cache=TRUE----------------------------------------------------------
 set.seed(seed)
 robust_boot_serial <- test_mediation(f_serial, data = BSG2014,
-                                     robust = TRUE)
+                                     level = 0.9, robust = TRUE)
 set.seed(seed)
 ols_boot_serial <- test_mediation(f_serial, data = BSG2014,
-                                  robust = FALSE)
+                                  level = 0.9, robust = FALSE)
 
 ## ------------------------------------------------------------------------
 robust_boot_serial
@@ -132,7 +132,7 @@ ols_boot_parallel <- test_mediation(f_parallel, data = BSG2014,
 robust_boot_parallel
 ols_boot_parallel
 
-## ----ellipse-partial, fig.width=5, fig.height=3.5, out.width="0.7\\textwidth", fig.cap="Diagnostic plot with a tolerance ellipse for partial residuals in a multiple parallel mediator model."----
+## ----ellipse-partial, fig.width=5, fig.height=3.875, out.width="0.7\\textwidth", fig.cap="Diagnostic plot with a tolerance ellipse for partial residuals in a multiple parallel mediator model."----
 ellipse_plot(robust_boot_parallel, horizontal = "SharedLeadership",
              vertical = "TeamPerformance", partial = TRUE)
 
