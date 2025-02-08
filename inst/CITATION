@@ -14,7 +14,7 @@ bibentry(
   number  = "13",
   pages   = "1--45",
   doi     = "10.18637/jss.v103.i13",
-  header  = "To cite robmed in publications, please use:"
+  header  = "To cite package robmed in publications, please use:"
 )
 
 bibentry(
@@ -45,7 +45,6 @@ robustness",
                      email = "alfons@ese.eur.nl"),
               person(given = c("Dan", "R."),
                      family = "Schley")),
-  journal = "Organizational Research Methods",
   year    = "2024",
   howpublished  = "PsyArXiv",
   doi     = "10.31234/osf.io/2hqdy",

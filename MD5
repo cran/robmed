@@ -1,6 +1,6 @@
-8d9366da56306995998eb89c1e68b62e *DESCRIPTION
+79ebf5ba73c842ed44d6ee552b777a4f *DESCRIPTION
 30fef6045a9f3611e38c2191f1bf765e *NAMESPACE
-04741ed11d03fe0fd9e140d97bb2ab4f *NEWS
+38dbc4c01e671f93538a4e0b89759e7f *NEWS
 17d9fd025f26280e8a59e67bef15c04d *R/BSG2014.R
 a3eaaf0db4226515cc04c84d57a513a2 *R/boot.R
 707ed66909a1c039cb9181ba948789a3 *R/ci_plot.R
@@ -34,13 +34,13 @@ bc571d17f2462333b32973321749ce45 *R/summary.R
 b9c75e653767b15f30e3463ce38ea95d *R/utils.R
 4960429e17c2c66c69261a47e4b5c53a *R/weight_plot.R
 742e567bc7acdac826ab84a6385cdd2d *R/weights.R
-080a0a43acdac088295925eed59ce74c *build/partial.rdb
+8c5ac18e2c31d015aca93e8429cc89af *build/partial.rdb
 ed48f0480d18f8c12320bc2353d49e9e *build/vignette.rds
 02444cadde977f4070b1752276f9f41f *data/BSG2014.RData
-30669341161e45cb1c753b16b6f72c06 *inst/CITATION
+1118804204e2a92587e43cc462a73113 *inst/CITATION
 be007b29ff80b18bf34403e88bb59390 *inst/doc/robmed-intro.R
 a657cc9d40d2fef07a861cf2bff0e2ce *inst/doc/robmed-intro.Rnw
-767d6e6df8af9156bc06056a58666a9c *inst/doc/robmed-intro.pdf
+c3b2ce2077e0dde9cdf89d7facbccacc *inst/doc/robmed-intro.pdf
 821fc4d6ef94adc7cf3c99c9266e3e08 *man/BSG2014.Rd
 78350b33ca1a33873aece464d61e5c9d *man/boot_samples.Rd
 41f40e90cecd521177a7d39985aa410f *man/ci_plot.Rd
