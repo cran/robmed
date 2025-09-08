@@ -7,7 +7,7 @@ render_sweave()             # use Sweave environments
 set_header(highlight = "")  # do not use the Sweave.sty package
 
 ## ----eval=FALSE----------------------------------------------------------
-#  install.packages("robmed")
+# install.packages("robmed")
 
 ## ----results='hide', message=FALSE, warning=FALSE------------------------
 library("robmed")
@@ -20,14 +20,14 @@ keep <- c("ValueDiversity", "TaskConflict", "TeamCommitment", "TeamScore",
 summary(BSG2014[, keep])
 
 ## ----eval=FALSE----------------------------------------------------------
-#  TeamCommitment ~ m(TaskConflict) + ValueDiversity
+# TeamCommitment ~ m(TaskConflict) + ValueDiversity
 
 ## ----eval=FALSE----------------------------------------------------------
-#  TeamScore ~ serial_m(TaskConflict, TeamCommitment) + ValueDiversity
+# TeamScore ~ serial_m(TaskConflict, TeamCommitment) + ValueDiversity
 
 ## ----eval=FALSE----------------------------------------------------------
-#  TeamPerformance ~ parallel_m(ProceduralJustice, InteractionalJustice) +
-#    SharedLeadership + covariates(AgeDiversity, GenderDiversity)
+# TeamPerformance ~ parallel_m(ProceduralJustice, InteractionalJustice) +
+#   SharedLeadership + covariates(AgeDiversity, GenderDiversity)
 
 ## ------------------------------------------------------------------------
 seed <- 20150601
@@ -47,9 +47,9 @@ ols_boot_simple <- test_mediation(f_simple, data = BSG2014,
 summary(robust_boot_simple)
 
 ## ----eval=FALSE----------------------------------------------------------
-#  weight_plot(robust_boot_simple) +
-#    scale_color_manual("", values = c("black", "#00BFC4")) +
-#    theme(legend.position = "top")
+# weight_plot(robust_boot_simple) +
+#   scale_color_manual("", values = c("black", "#00BFC4")) +
+#   theme(legend.position = "top")
 
 ## ------------------------------------------------------------------------
 summary(ols_boot_simple, type = "data")
