@@ -268,9 +268,9 @@
 #' The \R Package \pkg{robmed}.  \emph{Journal of Statistical Software},
 #' \bold{103}(13), 1--45.  doi:10.18637/jss.v103.i13.
 #'
-#' Alfons, A. and Schley, D.R. (2025) \emph{Robust Mediation Analysis: What We
-#' Talk About When We Talk About Robustness}.  PsyArXiV,
-#' doi:10.31234/osf.io/2hqdy.
+#' Alfons, A. and Schley, D.R. (2025) Robust Mediation Analysis: What We
+#' Talk About When We Talk About Robustness.  \emph{WIREs Computational
+#' Statistics}, \bold{17}(4), e70051.  doi:10.1002/wics.70051.
 #'
 #' Azzalini, A. and Arellano-Valle, R. B. (2013) Maximum Penalized Likelihood
 #' Estimation for Skew-Normal and Skew-t Distributions.  \emph{Journal of
@@ -310,18 +310,9 @@
 #' # 5% threshold
 #' p_value(boot_simple, parm = "indirect")
 #'
-#' # The results in Alfons et al. (2022a) were obtained with an
-#' # older version of the random number generator and with BCa
-#' # bootstrap intervals (which are no longer recommended).
-#' # To reproduce those results, uncomment the lines below.
-#' # RNGversion("3.5.3")
-#' # set.seed(seed)
-#' # fit_simple <- fit_mediation(TeamCommitment ~
-#' #                               m(TaskConflict) +
-#' #                               ValueDiversity,
-#' #                             data = BSG2014)
-#' # boot_simple <- test_mediation(fit_simple, type = "bca")
-#' # summary(boot_simple)
+#' # Note that the results in Alfons et al. (2022a) were obtained
+#' # with an older version of the random number generator and with
+#' # BCa bootstrap intervals (which are no longer recommended).
 #'
 #' \donttest{
 #' ## serial multiple mediators
@@ -331,7 +322,7 @@
 #'                                        TeamCommitment) +
 #'                               ValueDiversity,
 #'                             data = BSG2014)
-#' boot_serial <- test_mediation(fit_serial, level = 0.9)
+#' boot_serial <- test_mediation(fit_serial)
 #' summary(boot_serial)
 #'
 #' ## parallel multiple mediators and control variables

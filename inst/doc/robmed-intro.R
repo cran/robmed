@@ -43,7 +43,7 @@ set.seed(seed)
 ols_boot_simple <- test_mediation(f_simple, data = BSG2014,
                                   robust = FALSE)
 
-## ----summary, fig.width=5, fig.height=4.5, out.width="0.67\\textwidth", fig.cap="Diagnostic plot of the regression weights from the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="b!"----
+## ----summary, warning=FALSE, fig.width=5, fig.height=4.5, out.width="0.67\\textwidth", fig.cap="Diagnostic plot of the regression weights from the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="b!"----
 summary(robust_boot_simple)
 
 ## ----eval=FALSE----------------------------------------------------------
@@ -74,13 +74,13 @@ p_value(ols_boot_simple, parm = "Indirect")
 boot_list <- list("OLS bootstrap" = ols_boot_simple,
                   "ROBMED" = robust_boot_simple)
 
-## ----density, fig.width=5, fig.height=3.75, out.width="0.7\\textwidth", fig.cap="Density plot of the bootstrap distributions of the indirect effect, obtained via the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.  The vertical lines indicate the the respective point estimates of the indirect effect and the shaded areas represent the confidence intervals.", fig.pos="t!"----
+## ----density, warning=FALSE, fig.width=5, fig.height=3.75, out.width="0.7\\textwidth", fig.cap="Density plot of the bootstrap distributions of the indirect effect, obtained via the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.  The vertical lines indicate the the respective point estimates of the indirect effect and the shaded areas represent the confidence intervals.", fig.pos="t!"----
 density_plot(boot_list)
 
-## ----ci, fig.width=6, fig.height=4, out.width="0.85\\textwidth", fig.cap="Point estimates and 95\\% confidence intervals for selected effects in the mediation model, estimated via the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="t!"----
+## ----ci, warning=FALSE, fig.width=6, fig.height=4, out.width="0.85\\textwidth", fig.cap="Point estimates and 95\\% confidence intervals for selected effects in the mediation model, estimated via the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="t!"----
 ci_plot(boot_list, parm = c("a", "b", "Direct", "Indirect"))
 
-## ----ellipse, fig.width=5, fig.height=3.5, out.width="0.68\\textwidth", fig.cap="Diagnostic plot with tolerance ellipses for the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="b!"----
+## ----ellipse, warning=FALSE, fig.width=5, fig.height=3.5, out.width="0.68\\textwidth", fig.cap="Diagnostic plot with tolerance ellipses for the OLS bootstrap and the robust bootstrap procedure of \\citet{alfons22a}.", fig.pos="b!"----
 ellipse_plot(boot_list, horizontal = "ValueDiversity",
              vertical = "TaskConflict")
 
@@ -101,16 +101,16 @@ f_serial <- TeamScore ~ serial_m(TaskConflict, TeamCommitment) +
 ## ----cache=TRUE----------------------------------------------------------
 set.seed(seed)
 robust_boot_serial <- test_mediation(f_serial, data = BSG2014,
-                                     level = 0.9, robust = TRUE)
+                                     robust = TRUE)
 set.seed(seed)
 ols_boot_serial <- test_mediation(f_serial, data = BSG2014,
-                                  level = 0.9, robust = FALSE)
+                                  robust = FALSE)
 
 ## ------------------------------------------------------------------------
 robust_boot_serial
 ols_boot_serial
 
-## ----weight, fig.width=5, fig.height=5.5, out.width="0.7\\textwidth", fig.cap="Diagnostic plot of the regression weights from the robust bootstrap procedure of \\citet{alfons22a} in the example for a serial multiple mediator model."----
+## ----weight, warning=FALSE, fig.width=5, fig.height=5.5, out.width="0.7\\textwidth", fig.cap="Diagnostic plot of the regression weights from the robust bootstrap procedure of \\citet{alfons22a} in the example for a serial multiple mediator model."----
 weight_plot(robust_boot_serial) +
   scale_color_manual("", values = c("black", "#00BFC4")) +
   theme(legend.position = "top")
@@ -132,7 +132,7 @@ ols_boot_parallel <- test_mediation(f_parallel, data = BSG2014,
 robust_boot_parallel
 ols_boot_parallel
 
-## ----ellipse-partial, fig.width=5, fig.height=3.875, out.width="0.7\\textwidth", fig.cap="Diagnostic plot with a tolerance ellipse for partial residuals in a multiple parallel mediator model."----
+## ----ellipse-partial, warning=FALSE, fig.width=5, fig.height=3.875, out.width="0.7\\textwidth", fig.cap="Diagnostic plot with a tolerance ellipse for partial residuals in a multiple parallel mediator model."----
 ellipse_plot(robust_boot_parallel, horizontal = "SharedLeadership",
              vertical = "TeamPerformance", partial = TRUE)
 
@@ -146,6 +146,6 @@ retest(robust_boot_parallel, contrast = "absolute")
 ## ------------------------------------------------------------------------
 summary(robust_boot_serial, plot = FALSE)
 
-## ----summary-parallel, fig.width=5, fig.height=5.5, out.width="0.7\\textwidth", fig.cap="Diagnostic plot of the regression weights from the robust bootstrap procedure of \\citet{alfons22a} in the example for a parallel multiple mediator model.", fig.pos="t!"----
+## ----summary-parallel, warning=FALSE, fig.width=5, fig.height=5.5, out.width="0.7\\textwidth", fig.cap="Diagnostic plot of the regression weights from the robust bootstrap procedure of \\citet{alfons22a} in the example for a parallel multiple mediator model.", fig.pos="t!"----
 summary(robust_boot_parallel)
 
